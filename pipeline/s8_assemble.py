@@ -194,7 +194,10 @@ def compose(pid: int, slug: str, project: Dict[str, Any]) -> tuple[Dict[str, Any
             s["image"] = shots[0] if shots else ""
             # ★ 라벨은 **그림과 한 몸**이다. 그림이 비워 둔 자리에 얹히므로
             #   그림을 붙이는 이 자리에서 같이 붙인다.
-            s["labels"] = labels_of(_led.get(key) or {})
+            # ★ 원장은 **이름표(data_id)가 키다** — 번호가 아니다. 번호는 앞에
+            #   장 하나만 끼어들어도 전부 밀리지만 이름표는 안 밀린다
+            #   (core/workspace.py 의 ledger_path 주석 참고).
+            s["labels"] = labels_of(_led.get(sl.get("data_id") or "") or {})
             if sl.get("media_kind") == "html":
                 # ★ **의도와 결과를 가른다.** `image_swap` 은 "이 장은 그림으로
                 #   갈 장이다" 라는 **작정**이고, 그림이 아직 안 왔어도 참이다.

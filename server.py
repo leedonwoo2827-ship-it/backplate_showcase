@@ -51,6 +51,7 @@ import pipeline.s11_audio   # noqa: F401
 import pipeline.s12_video   # noqa: F401
 # ★ 모션은 **스테이지가 아니다** — STAGES 에 붙지 않으므로 이름을 들고 쓴다
 from pipeline import s13_motion as motion
+from pipeline import s3a_imgprompt as imgprompt
 
 APP_DIR = Path(__file__).resolve().parent
 STATIC = APP_DIR / "static"
@@ -1148,6 +1149,11 @@ def get_deck(pid: int) -> Dict[str, Any]:
     copy = (cached_data(pid, slug, "s7-copy") or {}).get("slides", {})
     audio = (cached_data(pid, slug, "s11-audio") or {}).get("slides", {})
     ov_slides = ws.load_overrides(pid, slug).get("slides", {})
+    # ★ 그림과 라벨 — 「라벨 자리」 화면이 이 둘을 같이 본다. 그림이 비워 둔
+    #   자리에 글이 얹히므로 따로 받아서는 맞출 수가 없다.
+    #   그림은 번호가 키고(s3b), 원장은 **이름표(data_id)가 키다**.
+    imgs = (cached_data(pid, slug, "s3b-images") or {}).get("images", {})
+    led = (ws.load_ledger(pid, slug) or {}).get("by_id", {})
 
     titles = {it["id"]: it.get("title") for it in doc.get("items", [])}
     out: List[Dict[str, Any]] = []
@@ -1179,6 +1185,13 @@ def get_deck(pid: int) -> Dict[str, Any]:
         au = audio.get(no) or {}
         s["audio"] = {"source": au.get("source"), "sec": au.get("duration_sec"),
                       "file": au.get("file")}
+        got = imgs.get(no) or {}
+        shots = [x.get("file") for x in (got.get("shots") or []) if x.get("file")]
+        if not shots and got.get("file"):
+            shots = [got["file"]]
+        s["images"] = shots
+        s["image"] = shots[0] if shots else ""
+        s["labels"] = imgprompt.labels_of(led.get(sl.get("data_id") or "") or {})
         # 손편집이 마지막에 이긴다
         for k, v in (ov_slides.get(no) or {}).items():
             if isinstance(v, dict) and isinstance(s.get(k), dict):

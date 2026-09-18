@@ -41,6 +41,10 @@ const routes = [
   { re: /^\/text$/,   nav: "txt", layer: "base", load: () => import("./text.js") },
   { re: /^\/html$/,   nav: "htm", layer: "base", load: () => import("./html.js") },
   { re: /^\/image$/,  nav: "img", layer: "base", load: () => import("./image.js") },
+  /* ★ 라벨 자리 — 배경판(11판) 전용. 그림이 비운 자리에 얹힌 글을 끌어 옮긴다.
+     그림 위치는 그림을 다시 굽지 않고 여기서 고친다(지시문으로 못박는 길은
+     이 레포에 실패 기록이 있다 — 3:2 시절 15장 전부가 칸을 넘겼다). */
+  { re: /^\/labels$/, nav: "lbl", layer: "base", load: () => import("./labels.js") },
   { re: /^\/video$/,  nav: "vid", layer: "base", load: () => import("./video.js") },
   { re: /^\/deck$/,   nav: "dck", layer: "base", load: () => import("./deck.js") },
   /* 발음 사전 — 입력칸이 있으니 바닥이다(패널 금지). 덱에서 버튼으로 온다. */
@@ -62,7 +66,7 @@ const routes = [
 
 const HOME = routes[0];
 // 프로젝트가 골라져야 열리는 화면 — 레일에서 잠근다.
-const NEEDS_PROJECT = new Set(["brd", "otl", "txt", "htm", "img", "vid", "dck", "mp4", "mtn"]);
+const NEEDS_PROJECT = new Set(["brd", "otl", "txt", "htm", "img", "lbl", "vid", "dck", "mp4", "mtn"]);
 
 function parseHash() {
   let raw = (location.hash || "#/board").slice(1) || "/board";

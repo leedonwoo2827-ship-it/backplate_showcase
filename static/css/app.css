@@ -2354,3 +2354,57 @@ label.check input { width: auto; }
 .dictfoot .muted { font-size: var(--t-2xs); color: var(--text-3); }
 .dictpanel .dp-car { transition: transform .15s; flex: 0 0 auto; color: var(--brand); }
 .dictpanel[open] .dp-car { transform: rotate(90deg); }
+
+/* ── 라벨 자리(11판) ───────────────────────────────────────────────────────
+   배경판 위의 글을 끌어 옮기는 화면. 실물 면은 **16:9 그대로** 두고 좌표를
+   %로 다룬다 — 화면이 몇 픽셀이든 영상이 1920 이든 같은 자리에 앉는다.
+   글자 크기를 cqh 로 잡는 이유도 같다(컨테이너 높이 비례). */
+.lb-tabs{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin:0 0 12px}
+.lb-tab{min-width:30px;padding:3px 7px;border:1px solid var(--border);
+  background:var(--surface);color:var(--ink-muted);border-radius:5px;
+  font-size:12px;cursor:pointer}
+.lb-tab.on{background:var(--brand);border-color:var(--brand);color:#fff;font-weight:700}
+.lb-save{margin-left:auto;font-size:12px;color:var(--ink-muted)}
+.lb-save.ok{color:var(--ok)} .lb-save.err{color:#c0392b}
+
+.lb-wrap{display:grid;grid-template-columns:minmax(0,68fr) minmax(280px,32fr);
+  gap:16px;align-items:start}
+@media (max-width:1100px){.lb-wrap{grid-template-columns:1fr}}
+
+.lb-frame{position:relative;width:100%;aspect-ratio:16/9;background:#F6F1E8;
+  container-type:size;border:1px solid var(--border);border-radius:4px;
+  overflow:hidden;user-select:none;touch-action:none}
+.lb-frame>img{position:absolute;inset:0;width:100%;height:100%;
+  object-fit:fill;display:block;pointer-events:none}
+.lb-title{position:absolute;left:3.2%;top:2.1%;margin:0;font-size:5.4cqh;
+  font-weight:800;letter-spacing:-.035em;color:#9a4d33;pointer-events:none}
+
+/* 상자 — 실제 슬라이드와 **같은 크기 규칙**이어야 한다. 여기서 맞춘 자리가
+   거기서 달라 보이면 이 화면은 거짓말을 하는 것이다. */
+.lb-box{position:absolute;left:var(--lx);top:var(--ly);width:var(--lw);
+  cursor:move;word-break:keep-all;text-wrap:pretty;
+  outline:1px dashed transparent;outline-offset:3px}
+.lb-box:hover{outline-color:var(--brand)}
+.lb-box.drag{outline-color:var(--brand);outline-style:solid}
+.lb-box>b{display:block;font-weight:700;font-size:4cqh;line-height:1.25;
+  letter-spacing:-.02em;color:#1F4E79}
+.lb-box>span{display:block;margin-top:.35em;font-weight:500;font-size:2.6cqh;
+  line-height:1.42;letter-spacing:-.01em;color:#334155}
+.lb-box>b,.lb-box>span{text-shadow:0 0 6px #F6F1E8,0 0 12px #F6F1E8}
+.lb-grip{position:absolute;right:-6px;bottom:-6px;width:12px;height:12px;
+  background:var(--brand);border:2px solid #fff;border-radius:50%;
+  cursor:ew-resize;opacity:0}
+.lb-box:hover .lb-grip,.lb-box.drag .lb-grip{opacity:1}
+
+.lb-side{display:flex;flex-direction:column;gap:10px}
+.lb-head{display:flex;flex-direction:column;gap:2px;padding-bottom:6px;
+  border-bottom:1px solid var(--border)}
+.lb-row{display:grid;grid-template-columns:20px 1fr;gap:5px 8px;
+  padding:9px;background:var(--surface);border:1px solid var(--border);
+  border-radius:6px}
+.lb-n{grid-row:span 3;font-size:12px;font-weight:700;color:var(--ink-muted);
+  text-align:center;padding-top:5px}
+.lb-in{width:100%;padding:5px 7px;border:1px solid var(--border);
+  border-radius:4px;background:var(--bg);color:var(--ink);font:inherit;font-size:13px}
+.lb-ta{resize:vertical;line-height:1.5}
+.lb-xy{font-size:11px;color:var(--ink-muted);font-variant-numeric:tabular-nums}
