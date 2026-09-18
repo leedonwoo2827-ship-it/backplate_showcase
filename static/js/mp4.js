@@ -150,8 +150,17 @@ export async function mount(root, ctx) {
        `/stages` 는 상태만 싣고 값을 안 실어 주므로, 값을 보자고 서버에 창구를 하나
        더 뚫는 것보다 이쪽이 낫다 — 로그는 어차피 사람이 보라고 찍고 있는 것이다. */
     const logs = [];
-    const ok = await runSteps(["s12-video"], {
-      btn, label: bLab, names: {"s12-video": "영상 렌더"},
+    /* ★ **판에 따라 다른 굽개를 쓴다.**
+         10판(full)  스틸을 찍어 이어붙인다(s12-video). 글자가 그림 안에 있어
+                     모션은 나중에 픽셀에서 상자를 되찾아 얹어야 한다.
+         11판(plate) 글자가 DOM 이라 GSAP 이 직접 움직인다(s12h-hyper).
+                     상자를 되찾을 일이 없고, 소리까지 −16 LUFS 로 맞춰 나온다.
+       버튼을 둘로 늘리지 않는다 — 사람이 고를 일이 아니라 프로젝트가 정한 것이다. */
+    const plate = (deck?.project?.image_fit || "") === "plate";
+    const key = plate ? "s12h-hyper" : "s12-video";
+    const ok = await runSteps([key], {
+      btn, label: bLab,
+      names: {"s12-video": "영상 렌더", "s12h-hyper": "모션 영상"},
       // ★ 한 줄이 아니라 **새로 늘어난 줄들**이 온다(runner.js) — 풀어서 담는다
       onLog: (lines) => {
         for (const l of lines) logs.push(String(l));

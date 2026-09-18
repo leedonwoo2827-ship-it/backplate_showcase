@@ -35,6 +35,8 @@ import pipeline.s9_render   # noqa: F401
 import pipeline.s10_tts     # noqa: F401
 import pipeline.s11_audio   # noqa: F401
 import pipeline.s12_video   # noqa: F401
+import pipeline.s3c_images_run  # noqa: F401  — 11판: 그림 굽기
+import pipeline.s12h_hyper      # noqa: F401  — 11판: HyperFrames 렌더
 
 
 class Job:

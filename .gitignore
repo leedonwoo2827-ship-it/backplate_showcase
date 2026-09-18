@@ -61,3 +61,7 @@ assets/
 _fontwork/
 showcase.config.local.json
 review.html
+node_modules/
+.venv/
+.venv-app/
+static/fonts/

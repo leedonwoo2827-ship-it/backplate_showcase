@@ -42,12 +42,25 @@ export const meta = {
     ld.append(icon("download", 14), el("span", null, "만든 이미지 불러오기"));
     ld.onclick = () => loadImages(ld);
 
+    /* ★ **그림 굽기 — 터미널 둘을 하나로 만든 자리.** 예전에는 이 버튼이
+       없어서, 사람이 09_이미지/이미지프롬프트.json 을 들고 8765 포트의 다른
+       앱으로 건너가 한 장씩 눌렀다. 그 앱을 imgstudio/ 로 들여왔으므로 이제
+       여기서 바로 돈다(S3c → S3b → S8).
+       ★ **구독 할당량을 쓴다.** 이어하기가 되므로(있는 번호는 건너뜀) 두세 장만
+         먼저 굽고 눈으로 본 뒤 나머지를 돌리는 것이 정석이다. */
+    const bake = el("button", "btn");
+    bake.type = "button";
+    bake.title = "이미지프롬프트.json 을 그대로 넣어 09_이미지/003.png 로 굽습니다"
+               + " — 있는 번호는 건너뜁니다";
+    bake.append(icon("wand", 14), el("span", null, "그림 굽기"));
+    bake.onclick = () => bakeImages(bake);
+
     const a = el("a", "btn");
     a.href = "/preview/" + (state.projectId || 0);
     a.target = "_blank";
     a.rel = "noopener";
     a.append(icon("slide", 14), el("span", null, "슬라이드 보기"));
-    return [mk, ld, a];
+    return [mk, bake, ld, a];
   },
 };
 
@@ -90,6 +103,41 @@ async function loadImages(btn) {
 /* 두 단계를 차례로 돌리고, 끝나면 **어디에 무엇이 생겼는지**를 말한다.
    파일 경로를 안 알려 주면 사람이 폴더를 뒤져야 한다 — 이 앱과 이미지 스튜디오의
    접점은 폴더 하나뿐이라, 그 폴더가 어디인지가 곧 사용법이다. */
+/* 그림을 실제로 굽고, 붙이고, 조립까지 한다.
+   ★ S3c 가 끝나면 바로 S3b(폴더 다시 훑기) → S8(조립) 로 이어야 한다.
+     안 이으면 그림이 와 있는데도 화면이 그대로라 "안 됐다" 로 보인다. */
+async function bakeImages(btn) {
+  const pid = state.projectId;
+  if (!pid) return;
+  const was = btn.innerHTML;
+  btn.disabled = true;
+  try {
+    for (const [key, what] of [["s3c-images-run", "그림 굽는 중"],
+                               ["s3b-images", "붙이는 중"],
+                               ["s8-assemble", "조립하는 중"]]) {
+      btn.textContent = what + "…";
+      const job = await api(`/api/projects/${pid}/stages/${key}/run`,
+                            { method: "POST", body: {} });
+      let j = job;
+      while (j.status === "running" || j.status === "queued") {
+        await new Promise((r) => setTimeout(r, 1500));
+        j = await api(`/api/jobs/${j.job_id}`);
+        // 진행 줄을 버튼에 그대로 비춘다 — 80장이면 오래 걸린다
+        const last = (j.log || []).slice(-1)[0];
+        if (last) btn.textContent = String(last).slice(0, 28);
+      }
+      if (j.status === "error") throw new Error((j.log || []).slice(-1)[0] || key);
+    }
+    toast("그림을 구웠습니다.");
+    location.reload();
+  } catch (e) {
+    toast("실패: " + e.message, "err");
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = was;
+  }
+}
+
 async function makePrompts(btn) {
   const pid = state.projectId;
   if (!pid) return;

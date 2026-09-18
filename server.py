@@ -49,6 +49,8 @@ import pipeline.s9_render   # noqa: F401
 import pipeline.s10_tts     # noqa: F401
 import pipeline.s11_audio   # noqa: F401
 import pipeline.s12_video   # noqa: F401
+import pipeline.s3c_images_run  # noqa: F401  — 11판: 그림 굽기
+import pipeline.s12h_hyper      # noqa: F401  — 11판: HyperFrames 렌더
 # ★ 모션은 **스테이지가 아니다** — STAGES 에 붙지 않으므로 이름을 들고 쓴다
 from pipeline import s13_motion as motion
 from pipeline import s3a_imgprompt as imgprompt
@@ -1212,6 +1214,11 @@ def get_deck(pid: int) -> Dict[str, Any]:
 
     return {
         "project_id": pid, "ready": True,
+        # ★ 판(10/11)을 화면도 알아야 한다 — 영상 렌더 버튼이 이 값으로
+        #   굽개를 고르고(s12-video / s12h-hyper), 라벨 화면도 이걸 본다.
+        "project": {"image_fit": doc.get("image_fit") or "frame",
+                    "title": doc.get("title") or "",
+                    "slug": doc.get("slug") or slug},
         "deck_title": outline.get("deck_title"),
         "deck_subtitle": outline.get("deck_subtitle"),
         "sections": outline.get("sections", []),

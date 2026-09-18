@@ -242,6 +242,19 @@ _DEFS: List[Stage] = [
     #   분류) — stale 이면 "다음 할 일"이 자동으로도 돌린다.
     Stage("s12-video", "영상 렌더", "dist", "ext",
           deps=["s8-assemble", "s10-tts"], reads=["slug", "title"], code_version=1),
+    # ── 11판(배경판) 전용 ────────────────────────────────────────────────
+    # ★ **그림 굽기.** 예전에는 사람이 이미지프롬프트.json 을 들고 다른 앱으로
+    #   건너가 한 장씩 눌렀다. 이제 같은 서버 안이라 스테이지로 돈다.
+    #   "ext" 인 이유: Claude 가 아니라 바깥 이미지 백엔드를 부른다(구독 할당량).
+    Stage("s3c-images-run", "그림 굽기", "images", "ext",
+          deps=["s3a-imgprompt", "s3b-images"],
+          reads=["slug", "title", "image_fit"], code_version=1),
+    # ★ **HyperFrames 렌더.** s12-video(Playwright 스틸 + ffmpeg 이어붙이기)를
+    #   대신한다. 글자가 DOM 이라 GSAP 이 직접 움직이고, 상자를 되찾을 일이 없다.
+    #   오디오도 HyperFrames 가 먹고, 마지막에 −16 LUFS 로 맞춘다.
+    Stage("s12h-hyper", "모션 영상(HyperFrames)", "dist", "ext",
+          deps=["s8-assemble", "s10-tts"],
+          reads=["slug", "title", "image_fit"], code_version=1),
 ]
 
 STAGES: Dict[str, Stage] = {s.key: s for s in _DEFS}

@@ -52,6 +52,22 @@ DEFAULTS: Dict[str, Any] = {
     "motion": {"tool_dir": None, "python": None},
     "render": {"seed_hex": "#7a5cc0", "max_single_file_mb": 10,
                "single_file_audio": "opus32"},
+    # ★ 산출물 규격 — 교육기관 제출 기준을 **설정으로 못박는다.**
+    #   숫자가 코드에 흩어져 있으면 「우리 영상 규격이 뭔가」에 답할 데가 없다.
+    #   ffprobe 로 재서 이 값과 대조하면 끝난다.
+    #   −16 LUFS 는 **스테레오 기준**이다. 모노면 같은 체감이 −19 라 어긋난다.
+    "video": {
+        "width": 1920, "height": 1080, "fps": 30,
+        "vcodec": "libx264", "crf": 20, "preset": "medium",
+        "profile": "high", "level": "4.0",
+        "acodec": "aac", "abitrate": "192k", "ar": 48000, "ac": 2,
+        "loudnorm": {"i": -16.0, "tp": -1.5, "lra": 11.0},
+    },
+    # ★ 자막은 **만들되 띄우지 않는다**(지시). 규격은 추후 범용성을 위해
+    #   세워만 둔다 — 지금은 사이드카 SRT 로만 나간다.
+    #   현재 vendor/vw_srt.py 의 규칙은 55자 한 줄뿐이고 CPS·최소·최대가 없다.
+    "subtitle": {"max_lines": 2, "max_chars": 42, "cps": 14.0,
+                 "min_sec": 1.5, "max_sec": 7.0, "burn_in": False},
     # 원고를 장으로 나눌 때
     "capture": {
         "mode": "html",
