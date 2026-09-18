@@ -185,9 +185,21 @@ def check_logins() -> None:
         except Exception:
             row(WARN, "Codex 로그인", "", "codex login")
 
-    claude = shutil.which("claude")
-    row(OK if claude else WARN, "Claude 로그인", "CLI 있음" if claude else "",
-        "" if claude else "터미널에서 `claude` 를 한 번 실행해 로그인")
+    # ★ **앱과 같은 방법으로 찾는다.** 처음엔 shutil.which("claude") 만 봤는데,
+    #   이 PC 에는 PATH 에 없고 **VSCode 확장 안**에 네이티브 바이너리가 있었다.
+    #   앱(llm/claude_provider.find_cli)은 그걸 찾아 잘 쓰는데 진단만 「없음」이라
+    #   했다 — 멀쩡한 것을 없다고 하면 사람이 헛일을 한다(2026-09-18 실측).
+    try:
+        from llm.claude_provider import find_cli
+        exe = find_cli()
+    except Exception:  # noqa: BLE001
+        exe = None
+    if exe:
+        where = "VSCode 확장" if ".vscode" in str(exe) else "PATH"
+        row(OK, "Claude 실행파일", f"{where}")
+    else:
+        row(WARN, "Claude 실행파일", "",
+            "터미널에서 `claude` 를 한 번 실행해 로그인 — 대본·지시문 단계에 필요")
 
 
 def check_workspace() -> None:
