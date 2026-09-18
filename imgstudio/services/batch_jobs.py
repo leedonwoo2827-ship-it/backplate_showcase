@@ -473,11 +473,19 @@ async def _run_job(job: BatchJob) -> None:
         _prune_job_files()
 
 
-def start_job(*, items: List[dict], out_dir: str, size: str, deck: str = "",
+def build_job(*, items: List[dict], out_dir: str, size: str, deck: str = "",
               workers: int = DEFAULT_WORKERS, retries: int = DEFAULT_RETRIES,
               skip_existing: bool = True, with_title: bool = False,
               fmt: str = "png", to_gallery: bool = True) -> BatchJob:
-    """배치 작업을 만들고 백그라운드로 돌린다. (호출 시점에 이벤트 루프가 있어야 함)"""
+    """작업을 **만들어 등록만** 한다. 돌리지는 않는다.
+
+    ★ 왜 갈랐나. 예전에는 만들기와 돌리기가 한 함수였고, 돌리기가
+      `asyncio.get_running_loop()` 을 써서 **이벤트 루프가 있는 곳에서만**
+      부를 수 있었다. 웹 라우트는 루프 안이라 괜찮았지만, 파이프라인
+      스테이지(`s3c-images-run`)는 쇼케이스가 **데몬 스레드**에서 돌린다 —
+      거기엔 루프가 없어서 `RuntimeError: no running event loop` 로 죽었다
+      (2026-09-18 실측). 만들기는 동기라, 돌리는 방법만 부르는 쪽이 고르게 한다.
+    """
     running = active_job()
     if running:
         raise RuntimeError(
@@ -515,9 +523,37 @@ def start_job(*, items: List[dict], out_dir: str, size: str, deck: str = "",
         _jobs[job.id] = job
     job.persist()
 
+    return job
+
+
+def start_job(**kw) -> BatchJob:
+    """만들어서 **이 루프에** 얹는다 — 웹 라우트용(루프 안에서 부른다)."""
+    job = build_job(**kw)
     task = asyncio.get_running_loop().create_task(_run_job(job))
     _tasks[job.id] = task
     task.add_done_callback(lambda _t: _tasks.pop(job.id, None))
+    return job
+
+
+def start_job_in_thread(**kw) -> BatchJob:
+    """만들어서 **제 스레드에서 제 루프로** 돌린다 — 파이프라인 스테이지용.
+
+    호출한 쪽은 루프가 없어도 된다. 진행 상황은 `get_job(id)` 로 읽는다
+    (job 객체를 스레드가 직접 갱신하므로 폴링이 그대로 먹는다).
+    """
+    job = build_job(**kw)
+
+    def _go() -> None:
+        try:
+            asyncio.run(_run_job(job))
+        except Exception as e:  # noqa: BLE001
+            job.status = "error"
+            job.fatal = f"{type(e).__name__}: {e}"
+            job.finished = _now_iso()
+            job.persist()
+
+    t = threading.Thread(target=_go, name=f"batch-{job.id}", daemon=True)
+    t.start()
     return job
 
 

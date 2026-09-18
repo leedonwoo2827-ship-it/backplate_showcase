@@ -64,7 +64,11 @@ def run(job, pid: int, slug: str, project: Dict[str, Any], *, force: bool = Fals
 
     st = load_settings()
     size = norm.get("suggested_size") or st.get("default_size", "auto")
-    bj = batch_jobs.start_job(
+    # ★ `start_job` 이 아니라 `start_job_in_thread` 다. 쇼케이스는 스테이지를
+    #   **이벤트 루프가 없는 데몬 스레드**에서 돌리는데, `start_job` 은
+    #   `asyncio.get_running_loop()` 을 써서 거기서는 죽는다
+    #   (2026-09-18 실측: RuntimeError: no running event loop).
+    bj = batch_jobs.start_job_in_thread(
         items=items, out_dir=str(d), size=size,
         deck=norm.get("deck") or project.get("title") or slug,
         workers=int(st.get("batch_workers") or batch_jobs.DEFAULT_WORKERS),
