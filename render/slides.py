@@ -94,9 +94,12 @@ def _media(s: Dict[str, Any], res) -> str:
                 #   장이 뜰 때 아직 안 와 있으면 빈 화면이 그대로 영상에 구워진다
                 #   (2026-08-14 실측: 화면이 1920×1080 로 잡혔는데 naturalWidth 가
                 #   0 이었다). 글 옆에 붙는 그림과 달리 늦어도 되는 그림이 아니다.
+                # ★ 11판이면 그림이 비워 둔 자리에 **진짜 글자**를 얹는다.
+                #   10판은 글이 그림 안에 있으므로 `labels` 가 비어 있고,
+                #   아래 한 줄은 빈 문자열이 되어 화면이 예전과 똑같다.
                 return (f'<figure class="m m-shots m-html m-swap" data-n="0"'
                         f' data-at="[]"><img loading="eager" decoding="sync"'
-                        f' src="{esc(src)}" alt=""/></figure>')
+                        f' src="{esc(src)}" alt=""/>{_labels_html(s)}</figure>')
         # ★ 조각은 이미 조립(s8)이 읽어 넣어 두었다 — 여기서 파일을 열지 않는다.
         #   렌더러는 `res` 가 주는 URL 밖에 못 보고, `dist/` 는 파일 한 장으로
         #   나가야 해서 나중에 불러올 수도 없다.
@@ -340,6 +343,34 @@ p{margin:0 0 11px;font-size:clamp(14px,1.15vw,17px);color:#4a453f;max-width:62ch
   object-fit:cover;object-position:top center}
 .m-pic img:first-of-type{opacity:1}
 .m-pic[data-n="1"] img{opacity:1}
+
+/* ── 배경판 위의 글(11판) ──────────────────────────────────────────────────
+   ★ 이 글은 **그림이 아니다.** 10판은 라벨을 이미지 모델이 그림 안에 인쇄했고
+     그러다 한글이 깨졌다(저자 지적 2026-09-14 "한글이 조금 깨지는 문제").
+     여기서는 브라우저가 그린다 — 깨질 수가 없고, 드래그로 선택되며,
+     모션이 이 요소를 직접 움직일 수 있다(상자를 되찾을 필요가 없다).
+   ★ 자리는 `--lx/--ly` 로 들어온다. 그 값은 지시문이 이미지 모델에게
+     "여기를 비워라" 라고 말한 좌표와 **같은 표**에서 나온다
+     (pipeline/s3a_imgprompt.py 의 PLACE_XY). 둘이 어긋나면 글이 그림을 덮는다.
+   ★ 크기는 그림 **높이** 기준이다. 10판이 모델에게 요구하던 수치를 그대로
+     옮겼다 — 소제목 4%, 설명은 그 65%. cqh 를 쓰면 그림 칸이 커지든 작아지든
+     비율이 유지된다(발표 화면·영상 프레임·편집 미리보기가 다 다른 크기다). */
+.m-swap{container-type:size}
+.lbls{position:absolute;inset:0;pointer-events:none}
+.lbl{position:absolute;left:var(--lx);top:var(--ly);width:var(--lw);
+     pointer-events:none;text-wrap:pretty;word-break:keep-all}
+.lbl b{display:block;font-weight:700;font-size:4cqh;line-height:1.25;
+       letter-spacing:-.02em;color:#1F4E79}
+.lbl span{display:block;margin-top:.35em;font-weight:500;font-size:2.6cqh;
+          line-height:1.42;letter-spacing:-.01em;color:#334155}
+/* 그림이 밝은 아이보리라 보통은 그냥 읽힌다. 다만 장면이 라벨 자리로
+   번지는 장이 있어 **아주 옅은 후광**만 깔아 둔다 — 상자·카드는 쓰지 않는다
+   (그림 위에 판을 깔면 배경판을 쓰는 뜻이 없어진다). */
+.lbl b,.lbl span{text-shadow:0 0 6px #F6F1E8,0 0 12px #F6F1E8}
+@container (max-width:900px){
+  .lbl b{font-size:4.6cqh}
+  .lbl span{font-size:3cqh}
+}
 
 /* ★ 캡처(text_image) 장 전용 — 텍스트 칸이 늘 비어 있으니 통짜 폭으로 쓰고,
    고정 비율 박스 없이 캡처 원래 크기 그대로 얹는다. 장마다 이미지 실제
@@ -1368,6 +1399,66 @@ def cue_map(deck: Dict[str, Any]) -> Dict[str, List[Any]]:
     return out
 
 
+def stamp_label_times(slides: List[Dict[str, Any]],
+                      cues: Dict[str, List[Any]]) -> None:
+    """라벨마다 **몇 초에 뜨는가**를 박는다.
+
+    ★ 시각의 출처는 **LLM 이 정한 `say_i`** 다 — 그 라벨을 몇 번째 문장에서
+      말하는가. 그림이 나온 뒤에 픽셀에서 되찾는 것이 아니라 지시문을 쓸 때
+      이미 정해져 있다. 여기서는 그 문장 번호를 **실측된 큐 시각**에 맞춰
+      초로 바꾸기만 한다.
+    ★ `until` 은 다음 라벨이 뜨는 때. 마지막 라벨은 장 끝까지 간다.
+    """
+    for s in slides:
+        lbs = [l for l in (s.get("labels") or []) if (l.get("head") or "").strip()]
+        if not lbs:
+            continue
+        cl = cues.get(str(s.get("no"))) or []
+        end = float(cl[-1][1]) if cl else float(
+            (s.get("audio") or {}).get("sec") or 0)
+        for l in lbs:
+            i = max(0, int(l.get("say_i") or 0))
+            # 문장 번호가 큐 수를 넘으면 마지막 문장에 붙인다 — 라벨을 잃는
+            # 것보다 늦게라도 뜨는 편이 낫다
+            l["at"] = float(cl[min(i, len(cl) - 1)][0]) if cl else 0.0
+        order = sorted(lbs, key=lambda x: x["at"])
+        for a, b in zip(order, order[1:]):
+            a["until"] = b["at"]
+        if order:
+            order[-1]["until"] = end or order[-1]["at"]
+
+
+def _labels_html(s: Dict[str, Any]) -> str:
+    """배경판 위에 얹는 글. **진짜 텍스트다** — 그림이 그린 글자가 아니다.
+
+    ★ 이것이 11판의 전부다. 10판은 이 글을 이미지 모델이 그림 안에 인쇄했고,
+      그러다 한글이 깨졌다(저자 지적 2026-09-14). 여기서는 브라우저가 그리므로
+      깨질 수가 없고, 드래그로 선택되며, 모션이 이 요소를 직접 움직일 수 있다.
+    ★ 크기는 10판이 이미지 모델에게 요구하던 수치 그대로다 —
+      소제목 4%(=그림 높이), 설명은 그 65%.
+    """
+    lbs = [l for l in (s.get("labels") or []) if (l.get("head") or "").strip()]
+    if not lbs:
+        return ""
+    out = []
+    for l in lbs:
+        sub = (l.get("sub") or "").strip()
+        at = l.get("at")
+        attrs = f' data-say="{int(l.get("say_i") or 0)}"'
+        if at is not None:
+            attrs += f' data-at="{float(at):.2f}"'
+        if l.get("until") is not None:
+            attrs += f' data-until="{float(l["until"]):.2f}"'
+        out.append(
+            f'<div class="lbl" style="--lx:{float(l.get("x", 4)):.2f}%;'
+            f'--ly:{float(l.get("y", 14)):.2f}%;'
+            f'--lw:{float(l.get("w", 23)):.2f}%"{attrs}>'
+            f'<b>{esc(l.get("head") or "")}</b>'
+            + (f'<span>{esc(sub)}</span>' if sub else "")
+            + '</div>')
+    return f'<div class="lbls">{"".join(out)}</div>'
+
+
 def render_deck(deck: Dict[str, Any], res, *, title: str = "",
                 one: bool = False, bgm: str = "", bgm_vol: float = 0.15,
                 bgm_duck: float = 0.04) -> str:
@@ -1379,6 +1470,10 @@ def render_deck(deck: Dict[str, Any], res, *, title: str = "",
 
     for s in slides:
         s["_project"] = proj
+    # ★ 큐를 **먼저** 만든다. 라벨 시각이 여기서 나오고, 아래 `__DECK__` 도
+    #   같은 것을 쓴다 — 두 번 계산하면 둘이 어긋날 수 있다.
+    cues = cue_map(deck)
+    stamp_label_times(slides, cues)
     body = "".join(_slide(s, lane_i.get(s.get("section"), 0), total, res) for s in slides)
     for s in slides:
         s.pop("_project", None)
@@ -1387,7 +1482,7 @@ def render_deck(deck: Dict[str, Any], res, *, title: str = "",
     # ★ 한 장만 보는 자리(편집 화면 iframe)에는 배경음악을 넣지 않는다. 거기서
     #   소리가 나면 스무 장을 훑는 동안 스무 번 음악이 새로 시작한다.
     bg = "" if one else (bgm or "")
-    data = json.dumps({"cues": cue_map(deck),
+    data = json.dumps({"cues": cues,
                        "bgm": {"on": bool(bg), "vol": bgm_vol, "duck": bgm_duck}},
                       ensure_ascii=False)
 

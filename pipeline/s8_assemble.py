@@ -26,6 +26,7 @@ from typing import Any, Dict, List
 
 from core import config, htmldoc, workspace as ws
 from pipeline.registry import ORDER, STAGES, cached_data, read_cache, write_cache
+from pipeline.s3a_imgprompt import labels_of
 
 MD = re.compile(r"[*_`#>]|^\s*[-•]\s+", re.M)
 
@@ -65,6 +66,10 @@ def compose(pid: int, slug: str, project: Dict[str, Any]) -> tuple[Dict[str, Any
 
     caps = (cached_data(pid, slug, "s3-caption") or {}).get("items", {})
     imgs = (cached_data(pid, slug, "s3b-images") or {}).get("images", {})
+    # ★ 그림 원장 — 11판 라벨(문구·설명줄·자리)이 여기 산다. 캐시가 아니라
+    #   원장을 읽는 이유: 라벨은 그림과 함께 살아 있는 값이고, 사람이 장을
+    #   다시 뽑아도 되살아나야 한다.
+    _led = (ws.load_ledger(pid, slug) or {}).get("by_id", {})
     dec = (cached_data(pid, slug, "s5-decisions") or {}).get("slides", {})
     copy = (cached_data(pid, slug, "s7-copy") or {}).get("slides", {})
     script = (cached_data(pid, slug, "s6-script") or {}).get("slides", {})
@@ -124,6 +129,9 @@ def compose(pid: int, slug: str, project: Dict[str, Any]) -> tuple[Dict[str, Any
             "data_id": sl.get("data_id") or "", "say": sl.get("say") or "",
             "body": body, "evidence": ev[:6],
             "video_id": sl.get("video_id"), "frames": [], "image": "",
+            # ★ 11판(배경판)에서 화면이 그릴 라벨. 10판은 글자가 그림 안에
+            #   있으므로 빈 목록이다 — 옛 프로젝트는 아무것도 안 바뀐다.
+            "labels": [],
             # 무음 영상 편집 — 구간·배속·삭제. 사람이 편집 화면에서 정하고
             # 오버라이드로 들어온다. 재인코딩하지 않고 재생기가 따른다.
             "clip": None,
@@ -184,6 +192,9 @@ def compose(pid: int, slug: str, project: Dict[str, Any]) -> tuple[Dict[str, Any
                 shots = [one] if one else []
             s["images"] = shots
             s["image"] = shots[0] if shots else ""
+            # ★ 라벨은 **그림과 한 몸**이다. 그림이 비워 둔 자리에 얹히므로
+            #   그림을 붙이는 이 자리에서 같이 붙인다.
+            s["labels"] = labels_of(_led.get(key) or {})
             if sl.get("media_kind") == "html":
                 # ★ **의도와 결과를 가른다.** `image_swap` 은 "이 장은 그림으로
                 #   갈 장이다" 라는 **작정**이고, 그림이 아직 안 왔어도 참이다.

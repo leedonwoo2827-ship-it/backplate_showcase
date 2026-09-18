@@ -56,6 +56,21 @@ LEVELS = ("기억", "이해", "적용", "분석", "평가", "창조")
 #          제목은 그림에서 빼 코드가 62px 고정으로 그린다.
 PROMPT_FMT = 6        # 액자 판 — **옛 프로젝트가 이 판을 그대로 지킨다**
 PROMPT_FMT_FULL = 10  # 전면 판 (10판: 그림이 **16:9 로 온다** — 잘리는 데가 없다)
+PROMPT_FMT_PLATE = 11  # 배경판 (11판: 그림은 **배경만**, 글자는 화면이 얹는다)
+
+# ★ **11판이 왜 생겼나.** 저자 지적(2026-09-14): "한글이 조금 깨지는 문제를
+#   제외하고는 괜찮다". 10판은 그림 모델에게 한글 라벨을 **인쇄**하라고 시킨다.
+#   모델이 글자를 틀리면(한다→한타) 고칠 방법이 마스크로 덮는 것뿐이었다
+#   (11_완성/*-라벨검수.md 의 "깨짐" 줄들이 그것이다).
+#   11판은 그림에서 글자를 통째로 뺀다. 라벨은 화면이 진짜 텍스트로 얹으므로
+#   **깨질 수가 없다.** 덤으로 모션이 DOM 요소를 직접 움직일 수 있어
+#   상자를 되찾는 일(zones·지정기·비전)이 통째로 없어진다.
+#
+# ★ **다 지우는 것이 아니다.** 처음엔 「글자를 하나도 넣지 마라」로 막았더니
+#   책등의 과목명·서류철 탭·분류 라벨 같은 **장면 속 글자**까지 사라져
+#   정보를 담은 그림이 빈 사무실 삽화가 됐다(2026-09-18 지적: "현재 톤이
+#   많이 틀려요"). 깨지던 것은 **긴 문장인 콜아웃 라벨**이지 사물에 붙은
+#   짧은 낱말이 아니다. 그래서 라벨만 빼고 장면 속 글자는 남긴다.
 
 # ★ 판을 **프로젝트마다** 고른다(`image_fit`). 한 자리에서 올려 버리면 지난
 #   프로젝트의 지시문까지 전부 낡은 것으로 잡혀 다시 쓰인다 — 그 그림들은 액자에
@@ -63,12 +78,23 @@ PROMPT_FMT_FULL = 10  # 전면 판 (10판: 그림이 **16:9 로 온다** — 잘
 #   "지난 영상 보수때문에").
 
 
+def is_plate(project: Dict[str, Any]) -> bool:
+    """이 덱이 **배경판**인가 — 그림에 글자를 안 넣고 화면이 얹는다."""
+    return ((project or {}).get("image_fit") or "frame") == "plate"
+
+
 def is_full(project: Dict[str, Any]) -> bool:
-    """이 덱이 **전면 판**인가. 값이 없으면 액자 판이다 — 옛 프로젝트가 그렇다."""
-    return ((project or {}).get("image_fit") or "frame") == "full"
+    """이 덱이 **16:9 전면 판**인가. 값이 없으면 액자 판이다 — 옛 프로젝트가 그렇다.
+
+    ★ 배경판(11)도 전면 판이다. 판 나누기·비율·잘림 없음은 10판과 똑같고,
+      다르게 가는 것은 **글자를 넣느냐** 하나뿐이다.
+    """
+    return ((project or {}).get("image_fit") or "frame") in ("full", "plate")
 
 
 def fmt_of(project: Dict[str, Any]) -> int:
+    if is_plate(project):
+        return PROMPT_FMT_PLATE
     return PROMPT_FMT_FULL if is_full(project) else PROMPT_FMT
 
 # 그림이 들어갈 수 있는 레인.
@@ -188,9 +214,79 @@ def _one(t: Any, n: int) -> str:
     return re.sub(r"\s+", " ", str(t or "")).strip()[:n]
 
 
+# ── 자리 이름 → 화면 좌표 ──────────────────────────────────────────────────
+# ★ **이 표가 그림과 화면을 맞물린다.** 11판에서 그림은 이 자리를 비우고
+#   화면은 이 자리에 글을 얹는다. 둘이 어긋나면 글이 그림 위에 겹친다.
+#   숫자는 프롬프트가 모델에게 말하는 좌표와 같은 것이다 —
+#     「위」 y=150~330  → 150/1080 = 13.9%
+#     「아래」 y=730~1010 → 730/1080 = 67.6%
+#     가운데 띠는 그 사이(y≈440) = 40.7%
+#   가로는 실측한 zones.json 의 상자에서 가져왔다(왼쪽 x=72 · 오른쪽 x=1436 ·
+#   너비 437 → 4% · 74.8% · 22.8%). 네 칸짜리 가로흐름은 23%씩 붙여 놓는다.
+_X_L, _X_CL, _X_CR, _X_C, _X_R = 4.0, 27.0, 50.0, 38.5, 73.0
+_Y_T, _Y_M, _Y_B = 13.9, 40.7, 67.6
+LABEL_W = 23.0          # 상자 너비(%) — 라벨 설명 두세 줄이 들어가는 폭
+
+PLACE_XY: Dict[str, tuple] = {
+    "왼쪽 위":            (_X_L,  _Y_T),
+    "왼쪽 가운데":        (_X_L,  _Y_M),
+    "왼쪽 아래":          (_X_L,  _Y_B),
+    "오른쪽 위":          (_X_R,  _Y_T),
+    "오른쪽 가운데":      (_X_R,  _Y_M),
+    "오른쪽 아래":        (_X_R,  _Y_B),
+    "가운데 위":          (_X_C,  _Y_T),
+    "가운데 아래":        (_X_C,  _Y_B),
+    "위 왼쪽":            (_X_L,  _Y_T),
+    "위 오른쪽":          (_X_R,  _Y_T),
+    "아래 왼쪽":          (_X_L,  _Y_B),
+    "아래 가운데":        (_X_C,  _Y_B),
+    "아래 오른쪽":        (_X_R,  _Y_B),
+    "아래 가운데 왼쪽":   (_X_CL, _Y_B),
+    "아래 가운데 오른쪽": (_X_CR, _Y_B),
+}
+
+
+def labels_of(entry: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """원장 한 칸 → 화면이 그릴 라벨 목록.
+
+    11판에서 `render/slides.py` 와 `s8_assemble` 이 이것을 쓴다. 10판 원장에는
+    `label_subs`·`label_places` 가 없으므로 **빈 목록이 나온다** — 옛 프로젝트를
+    건드리지 않기 위해서다(그쪽은 글자가 그림 안에 있다).
+    """
+    heads = list(entry.get("label_heads") or [])
+    if not heads:
+        return []
+    subs = list(entry.get("label_subs") or [])
+    places = list(entry.get("label_places") or [])
+    says = list(entry.get("label_says") or [])
+    if not subs and not places:
+        return []               # 10판 원장 — 화면이 그릴 것이 없다
+    out: List[Dict[str, Any]] = []
+    for i, head in enumerate(heads):
+        place = places[i] if i < len(places) else ""
+        x, y = PLACE_XY.get(place, (_X_L, _Y_T))
+        out.append({
+            "head": head,
+            "sub": subs[i] if i < len(subs) else "",
+            "place": place,
+            "x": x, "y": y, "w": LABEL_W,
+            # 몇 번째 내레이션 문장에서 이 라벨을 말하는가 — 모션이 읽는다
+            "say_i": int(says[i]) if i < len(says) else 0,
+        })
+    return out
+
+
+def _places_for(arrange: str, n: int) -> List[str]:
+    """라벨 n개가 앉을 자리 이름. `compose()` 가 쓰는 규칙과 **같아야** 한다 —
+    그림은 이 자리를 비우고 화면은 이 자리에 글을 얹으므로, 둘이 어긋나면
+    글이 그림 위에 겹친다."""
+    a = arrange if arrange in ARRANGE else "좌우"
+    return _PLACE[a][:max(0, int(n))]
+
+
 def compose(*, background: str, layout: str, tone: str, title: str,
             labels: List[Dict[str, Any]], arrange: str,
-            cfg: Dict[str, Any], full: bool = False) -> str:
+            cfg: Dict[str, Any], full: bool = False, plate: bool = False) -> str:
     """이미지 스튜디오가 그대로 먹는 **한국어 프롬프트.**
 
     ★ 이 그림은 **글자를 넣는 그림**이다. 예전엔 정반대였다 — 영어로 「no text」를
@@ -277,12 +373,40 @@ def compose(*, background: str, layout: str, tone: str, title: str,
             "제목이 얹힐 빈 자리다")
     else:
         lines.append(f'제목(한글, 굵게, 화면 맨 위 가운데): "{_one(title, 40)}"')
-    for i, lb in enumerate(labels[:len(spots)]):
-        head = _one((lb or {}).get("head"), 20)
-        body = _one((lb or {}).get("body"), 80)
-        if not head:
-            continue
-        lines.append(f'라벨 {i + 1} ({spots[i]}): 굵게 "{head}" / 그 아래 작게 "{body}"')
+    used = [spots[i] for i, lb in enumerate(labels[:len(spots)])
+            if _one((lb or {}).get("head"), 20)]
+    if plate:
+        # ★ **11판: 글자를 적어 주지 않는다. 자리만 비운다.**
+        #   10판은 여기서 라벨 문구를 그대로 넘겨 모델이 인쇄하게 했다. 그러다
+        #   한글이 깨졌다. 11판은 같은 자리를 **빈 채로** 받아 화면이 그 위에
+        #   진짜 텍스트를 얹는다 — 자리 지시는 그대로 두어야 글이 그림을 가리지
+        #   않는다. 비울 자리를 안 적으면 모델이 판을 꽉 채워 글 놓을 데가 없다.
+        if used:
+            lines.append(
+                "라벨 자리 비우기: " + " · ".join(f"「{x}」" for x in used) +
+                f" — 모두 {len(used)}곳이다. 이 자리에는 장면의 주요 사물을 "
+                "놓지 말고 바탕이 넓게 드러나게 둬라. 화면이 이 자리에 글자를 "
+                "얹는다. **글자는 네가 그리지 않는다** — 자리만 비워 주면 된다")
+        # 라벨(콜아웃)만 뺀다.
+        lines.append(
+            "글자: **라벨(소제목+설명)을 그림에 인쇄하지 마라.** 그 글은 화면이 "
+            "진짜 텍스트로 얹는다 — 네가 그리면 두 겹으로 겹친다. "
+            "제목·헤드라인도 넣지 않는다")
+        # ★ 장면 속 글자는 **남긴다.** 다 지웠더니 정보를 담은 그림이 빈 사무실
+        #   삽화가 됐다(2026-09-18 지적: "현재 톤이 많이 틀려요").
+        lines.append(
+            "다만 **장면 속 사물에 붙은 글자는 넣어라** — 책등의 과목명, 서류철 "
+            "탭, 분류 라벨, 게시물, 표지의 짧은 낱말 같은 것이다. 그것이 있어야 "
+            "장면이 정보를 담은 그림이 된다. 없으면 빈 사무실 삽화가 된다. "
+            "다만 **짧은 낱말**로만 두어라(두세 어절 이내) — 설명하는 긴 문장은 "
+            "쓰지 마라. 길수록 글자가 깨진다")
+    else:
+        for i, lb in enumerate(labels[:len(spots)]):
+            head = _one((lb or {}).get("head"), 20)
+            body = _one((lb or {}).get("body"), 80)
+            if not head:
+                continue
+            lines.append(f'라벨 {i + 1} ({spots[i]}): 굵게 "{head}" / 그 아래 작게 "{body}"')
     if arrange in _FLOW and len(labels) > 1:
         lines.append("라벨 사이에 진행 방향을 가리키는 화살표를 하나씩 넣어라 "
                      "— 왼쪽에서 오른쪽으로 이어지는 순서다")
@@ -290,16 +414,26 @@ def compose(*, background: str, layout: str, tone: str, title: str,
     #   이으면 화면이 지저분해지고, 마스크로 라벨을 하나씩 밝힐 때 선만 먼저
     #   떠 있어 다음에 무엇이 나올지 미리 보인다. 라벨은 **가까이 놓아** 무엇을
     #   가리키는지 알게 한다.
-    lines.append("라벨은 **글자만** 놓아라 — 라벨과 그림을 잇는 선이나 점을 그리지 "
-                 "말고, 라벨을 상자·카드·둥근 판·테두리에 담지도 마라. 바탕 위에 "
-                 "글자만 얹고, 가리키는 부분 **가까이에** 놓아 저절로 이어져 보이게 한다")
+    if not plate:
+        lines.append("라벨은 **글자만** 놓아라 — 라벨과 그림을 잇는 선이나 점을 그리지 "
+                     "말고, 라벨을 상자·카드·둥근 판·테두리에 담지도 마라. 바탕 위에 "
+                     "글자만 얹고, 가리키는 부분 **가까이에** 놓아 저절로 이어져 보이게 한다")
+    else:
+        # 11판에도 상자·카드는 막는다. 빈 자리에 장식 판을 깔아 두면 그 위에
+        # 얹히는 진짜 글자와 이중으로 겹친다.
+        lines.append("비운 자리에 상자·카드·둥근 판·테두리·말풍선 같은 **글자 담을 "
+                     "그릇을 미리 그리지 마라.** 바탕이 그대로 드러나 있어야 한다")
 
     # ★ **글자 크기를 세 단으로 못박는다.** 안 적으면 모델이 라벨을 제목만큼 키워
     #   화면이 글자로 덮인다. 본보기의 제목:소제목:설명이 대략 1 : 0.6 : 0.4 였다.
     # ★ 전면 판에는 그림 안에 제목이 없다. 없는 것을 기준으로 적으면 모델이
     #   기준을 못 찾아 라벨을 제목만 하게 키운다 — 그래서 **그림 높이로** 적는다
     #   (옛 판의 제목 7% × 0.6 = 4.2%, 그 65% = 2.7%. 결이 같다).
-    if full:
+    if plate:
+        pass   # 그림 안에 글자가 없으니 글자 크기를 적을 것이 없다.
+               # 화면 쪽 크기는 render/slides.py 의 .lbl 이 정한다
+               # (소제목 4% · 설명은 그 65% — 10판이 모델에게 시키던 그 수치).
+    elif full:
         lines.append("글자 크기: 라벨 소제목은 그림 높이의 4% 안팎, 그 아래 설명은 "
                      "소제목의 65%. 두 단이 눈에 띄게 달라야 한다. 글자가 화면을 "
                      "덮으면 안 된다 — 그림이 주인공이고 라벨은 그 둘레에 얹힌다. "
@@ -321,10 +455,17 @@ def compose(*, background: str, layout: str, tone: str, title: str,
         #   배율이 1.25 가 되고 세로 1280 중 **아래 262px(20.5%)이 잘린다.**
         # ★ 「가장자리까지 다 쓰라」와 정면으로 부딪히므로 **어느 쪽이 이기는지**를
         #   적어 준다. 안 적으면 둘을 반씩 지켜 라벨이 잘리는 자리에 앉는다.
-        lines.append("라벨 자리(2칸 안의 좌표): 「위」라고 적은 자리는 y=150~330, "
-                     "「아래」라고 적은 자리는 y=730~1010 이다 — 라벨의 **설명 "
-                     "줄까지** y=1010 안에서 끝나야 한다. 「아래」는 1칸이 아니라 "
-                     "**2칸의 아래쪽**을 뜻한다")
+        if plate:
+            lines.append("비울 자리(2칸 안의 좌표): 「위」라고 적은 자리는 "
+                         "y=150~330, 「아래」라고 적은 자리는 y=730~1010 이다. "
+                         "그 띠에는 바탕만 두고 주요 사물·굵은 선·짙은 무늬를 "
+                         "두지 마라 — 화면이 그 위에 글자를 얹는다. 「아래」는 "
+                         "1칸이 아니라 **2칸의 아래쪽**을 뜻한다")
+        else:
+            lines.append("라벨 자리(2칸 안의 좌표): 「위」라고 적은 자리는 y=150~330, "
+                         "「아래」라고 적은 자리는 y=730~1010 이다 — 라벨의 **설명 "
+                         "줄까지** y=1010 안에서 끝나야 한다. 「아래」는 1칸이 아니라 "
+                         "**2칸의 아래쪽**을 뜻한다")
         # ★ **16:9 로 뽑는다**(10판). 화면과 비율이 같아 잘리는 데가 없다 —
         #   「안 잘린다」를 분명히 적어야 모델이 가장자리를 비워 두지 않는다.
         lines.append("산출물 규격: **16:9 가로(1920×1080)**. 발표 화면과 비율이 "
@@ -426,6 +567,7 @@ def run(job, pid: int, slug: str, project: Dict[str, Any], *, force: bool = Fals
     # ★ 판번호는 **이 덱의 갈래**가 정한다. 액자 판(옛 프로젝트)은 6 그대로라
     #   원장이 낡은 것으로 안 잡힌다 — 지난 영상을 보수해도 지시문이 안 흔들린다.
     full = is_full(project)
+    plate = is_plate(project)
     fmt = fmt_of(project)
 
     outline = cached_data(pid, slug, "s2b-outline") or {}
@@ -524,6 +666,14 @@ def run(job, pid: int, slug: str, project: Dict[str, Any], *, force: bool = Fals
                     "fmt": fmt,
                     # 유튜브 챕터·썸네일이 이 값을 읽는다(render/youtube.py)
                     "label_heads": [_one(x["head"], 20) for x in labels],
+                    # ★ **설명줄과 자리를 버리지 않는다.** 10판은 이 둘을 프롬프트
+                    #   문자열 안에만 남기고 버렸다 — 그림이 인쇄해 줄 테니 다시
+                    #   쓸 일이 없었기 때문이다. 11판은 화면이 직접 그려야 해서
+                    #   **구조화된 채로** 있어야 한다.
+                    "label_subs": [_one(x.get("body"), 80) for x in labels],
+                    "label_places": _places_for(r.get("arrange") or "", len(labels)),
+                    "arrange": (r.get("arrange") if r.get("arrange") in ARRANGE
+                                else "좌우"),
                     # ★ 라벨마다 **몇 번째 문장에서 말하는가**. 모션이 이걸 읽어
                     #   상자 차례를 정한다 — 그림이 오고 나서 되찾을 필요가 없다.
                     "label_says": [max(0, int(x.get("say_i") or 0)) for x in labels],
@@ -533,7 +683,7 @@ def run(job, pid: int, slug: str, project: Dict[str, Any], *, force: bool = Fals
                                       layout=r.get("layout"), tone=r.get("tone"),
                                       title=_one(r.get("title"), 40) or plain_title(src),
                                       labels=labels, arrange=r.get("arrange") or "",
-                                      cfg=cfg, full=full),
+                                      cfg=cfg, full=full, plate=plate),
                     "keywords": [str(k) for k in (r.get("keywords") or [])][:1],
                 }
         job.progress(len(batches), len(batches), "정리")

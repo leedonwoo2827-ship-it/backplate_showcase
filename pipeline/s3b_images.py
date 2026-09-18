@@ -43,6 +43,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from core import config, ledger as lg, workspace as ws
+from pipeline.s3a_imgprompt import labels_of
 from pipeline.registry import STAGES, cached_data, write_cache
 from pipeline.s3a_imgprompt import WANT_MEDIA, is_full, slide_id
 
@@ -167,6 +168,12 @@ def run(job, pid: int, slug: str, project: Dict[str, Any], *, force: bool = Fals
             "file": f"{n:03d}.png",
             "data_id": did,
         }
+        # ★ 11판: 그림이 **비운 자리**에 화면이 얹을 글. 스튜디오는 안 읽지만
+        #   사람이 JSON 을 열었을 때 "이 장에 무슨 글이 붙는지" 보여야 하고,
+        #   그림을 다시 뽑을 때 자리가 맞는지 대조할 수 있어야 한다.
+        _lb = labels_of(e)
+        if _lb:
+            row["labels"] = _lb
         rows.append(row)
         if did in need:
             gap.append(row)
