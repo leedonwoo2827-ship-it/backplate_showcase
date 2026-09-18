@@ -54,3 +54,10 @@ projects/
 
 # Claude Code 런타임 부산물 — 세션 UUID·PID 가 들어 있고 사람이 읽을 것도 아니다
 .claude/
+
+# ── 합치면서 생긴 것 ──
+imgstudio/data/
+assets/
+_fontwork/
+showcase.config.local.json
+review.html

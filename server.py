@@ -100,6 +100,15 @@ class FreshStatic(StaticFiles):
 
 app.mount("/static", FreshStatic(directory=str(STATIC)), name="static")
 
+# ── 이미지 스튜디오 ────────────────────────────────────────────────────────
+# 예전에는 별도 앱(8765 포트)이라 사람이 이미지프롬프트.json 을 들고 창을 옮겨
+# 다녔다. 같은 FastAPI 라 라우터로 얹는다 — 터미널이 하나가 된다.
+# ★ 라우터를 먼저 걸고 정적 마운트를 나중에 건다. 순서가 뒤집히면
+#   /imgstudio 마운트가 /imgstudio/api/* 까지 삼킨다.
+from imgstudio.mount import attach as _attach_imgstudio  # noqa: E402
+
+_attach_imgstudio(app)
+
 
 # ── 건강 확인 ──────────────────────────────────────────────────────────────
 @app.get("/api/health")

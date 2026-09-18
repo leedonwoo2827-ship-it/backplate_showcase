@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supertonic 3 TTS — 표현 태그 실험실</title>
+  <link rel="stylesheet" href="/static/app.css">
+  <link rel="stylesheet" href="/static/shell.css">
+  <link rel="stylesheet" href="/static/taglab.css">
+</head>
+<body data-page="taglab">
+  <header class="app-header">
+    <h1>표현 태그 실험실</h1>
+    <p class="tagline">Supertonic 3의 표현 태그 10종을 직접 합성해 듣고, 정말 되는지 판정합니다</p>
+    <nav class="pagenav"><a href="/">← 합성 화면으로</a></nav>
+  </header>
+  <main style="padding:20px 28px 48px;max-width:1400px">
+    <!-- 사이드바 없이 열리는 화면이라 화자/속도/스텝은 서버 기본값을 쓴다 -->
+    <div id="taglabRoot"></div>
+  </main>
+  <footer class="app-footer"><a href="/">합성 화면으로 돌아가기</a></footer>
+  <script src="/static/taglab.js"></script>
+</body>
+</html>

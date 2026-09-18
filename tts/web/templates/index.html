@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Supertonic 3 TTS — 로컬 음성 + 자막</title>
+  <link rel="stylesheet" href="/static/app.css?v=s3">
+  <link rel="stylesheet" href="/static/shell.css?v=s3">
+  <link rel="stylesheet" href="/static/taglab.css?v=s3">
+</head>
+<body>
+  <header class="app-header">
+    <h1>Supertonic 3 TTS</h1>
+    <p class="tagline">내 기기에서 직접 실행되는 초고속 음성 합성 — 음성과 자막을 한 번에</p>
+    <p class="speclist">
+      <span>31개 언어</span><span>표현 태그 10종</span><span>발음 사전</span><span>44.1kHz</span><span>100% 로컬</span>
+    </p>
+    <div class="badges">
+      <span id="badgeEngine" class="badge wait">엔진 대기 중</span>
+      <span class="badge">Supertonic 3 · 31개 언어</span>
+      <span id="badgeProvider" class="badge">실행기 확인 중</span>
+      <span id="badgeRate" class="badge">44100 Hz</span>
+    </div>
+  </header>
+
+  <div class="app-shell">
+    <!-- =============================== 사이드바 =============================== -->
+    <aside class="sidebar">
+      <div class="side-group">
+        <label for="lang">언어</label>
+        <select id="lang"></select>
+        <p class="side-help">여러 언어가 한 문장에 섞여 있으면 <strong>자동 (언어 무관)</strong>을 고르세요. 모델이 언어 태그 없이 처리합니다.</p>
+      </div>
+
+      <div class="side-group">
+        <span class="side-label">화자</span>
+        <div id="voiceGrid" class="voice-grid" role="group" aria-label="화자 선택"></div>
+        <label for="voice" class="sr-only">화자 선택</label>
+        <select id="voice" class="sr-only" aria-hidden="true" tabindex="-1"></select>
+        <p class="side-help">M = 남성, F = 여성 · 칸에 마우스를 올리면 나오는 <strong>▶</strong>로 그 목소리를 미리 들어볼 수 있습니다(실제 합성이라 처음엔 몇 초 걸립니다). ★는 매핑 기본값.</p>
+      </div>
+
+      <div class="side-group">
+        <div class="side-slider-head">
+          <label for="totalStep">디노이징 스텝</label>
+          <span class="side-val" id="stepValue">8</span>
+        </div>
+        <input id="totalStep" type="range" min="5" max="12" step="1" value="8">
+        <p class="side-help">높을수록 부드럽지만 느립니다. 5~12, 기본 8.</p>
+      </div>
+
+      <div class="side-group">
+        <div class="side-slider-head">
+          <label for="speed">음성 속도</label>
+          <span class="side-val" id="speedValue">1.00</span>
+        </div>
+        <input id="speed" type="range" min="0.7" max="2.0" step="0.05" value="1.00">
+        <p class="side-help">0.7~2.0배. 1.0을 크게 벗어나면 발음이 뭉개질 수 있습니다.</p>
+      </div>
+
+      <div class="side-group">
+        <label for="format">저장 형식</label>
+        <select id="format">
+          <option value="wav">WAV · 무손실 (44.1kHz / 16-bit)</option>
+        </select>
+        <p class="side-help">모델이 내보내는 원본 그대로 저장됩니다. 재인코딩이 없어 손실이 없습니다.</p>
+      </div>
+    </aside>
+
+    <!-- =============================== 본문 =============================== -->
+    <div class="content">
+      <nav class="tabs">
+        <button class="tab active" data-tab="single">한 개 합성</button>
+        <button class="tab" data-tab="batch">대본 일괄</button>
+        <button class="tab" data-tab="taglab">표현 태그 실험실<span class="tab-count">10</span></button>
+        <button class="tab" data-tab="dict">발음 사전<span class="tab-count" id="dictCountTab">·</span></button>
+        <button class="tab" data-tab="api">API 및 사용법</button>
+      </nav>
+
+      <main>
+        <!-- ---------------- 한 개 합성 ---------------- -->
+        <section id="tab-single" class="tab-panel active">
+          <div class="single-card scene-card" id="singleCard">
+            <div class="scene-text-grid">
+              <div class="scene-text-col scene-text-pron">
+                <div class="scene-text-label">
+                  <span class="label-title">발음 <small>(TTS 입력)</small></span>
+                  <div class="label-actions">
+                    <button id="toPronunciation" type="button" class="to-pronunciation" title="영문 약자 + 연도(1989년→천구백팔십구년) + 숫자+단위(27킬로미터→이십칠 킬로미터)를 한국어 발음으로 자동 전환. 표현 태그는 그대로 보존됩니다.">한국어 발음 전환</button>
+                    <button id="resetPron" type="button" class="reset-pron" disabled>↺ 원본</button>
+                  </div>
+                </div>
+                <div class="tagbar" id="tagBar">
+                  <span class="tagbar-label">표현 태그</span>
+                </div>
+                <textarea id="text" class="scene-pron-edit" rows="7" placeholder="합성할 문장을 입력하세요.&#10;&#10;정말 잘했어요 &lt;laugh&gt; 자랑스럽습니다."></textarea>
+                <p class="char-count" id="charCount">0글자</p>
+                <div id="tagWarnings" class="tag-warnings hidden"></div>
+              </div>
+              <div class="scene-text-col scene-text-srt">
+                <div class="scene-text-label">
+                  <span class="label-title">자막 <small>(SRT 출력)</small></span>
+                  <div class="label-actions">
+                    <button id="resetSrt" type="button" class="reset-srt" disabled>↺ 원본</button>
+                  </div>
+                </div>
+                <textarea id="srtText" class="scene-srt-edit" rows="7" placeholder="자막에 들어갈 텍스트 — 발음을 따로 고쳐도 여기엔 원본이 그대로 유지됩니다. 표현 태그는 자막에서 자동으로 빠집니다."></textarea>
+                <p class="side-help" style="margin-top:4px">발음 쪽을 건드리지 않으면 왼쪽 내용이 그대로 따라옵니다. 한 번 손대면 따로 관리됩니다.</p>
+              </div>
+            </div>
+
+            <button id="generate" class="primary block">음성 생성</button>
+
+            <div id="singleResult" class="result hidden">
+              <div class="metrics hidden" id="metrics">
+                <div class="metric">
+                  <div class="metric-label">오디오 길이</div>
+                  <div class="metric-value" id="mDuration">–</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">생성 시간</div>
+                  <div class="metric-value" id="mSynth">–</div>
+                </div>
+                <div class="metric">
+                  <div class="metric-label">실시간 대비</div>
+                  <div class="metric-value" id="mRtf">–</div>
+                </div>
+              </div>
+              <audio id="audio" controls></audio>
+              <div class="cue-preview hidden">
+                <div class="cue-preview-text"></div>
+                <div class="cue-progress"><div class="cue-progress-fill"></div></div>
+              </div>
+              <div class="cue-editor hidden">
+                <div class="cue-editor-head">
+                  <span class="cue-editor-title">자막 타이밍 <small>(들으면서 시간을 조정하세요 · 타임코드를 클릭하면 그 지점부터 재생)</small></span>
+                  <div class="cue-editor-actions">
+                    <button type="button" class="cue-autofill" title="현재 줄 텍스트 기준으로 시간을 글자수 비례로 다시 채웁니다">시간 자동 채우기</button>
+                    <button type="button" class="cue-save" title="조정한 타임코드를 .srt 다운로드에 반영">자막 저장</button>
+                  </div>
+                </div>
+                <div class="cue-rows"></div>
+              </div>
+              <div class="scene-downloads">
+                <a id="downloadLink" class="dl-wav download" download="synth.wav">⬇ WAV 다운로드</a>
+                <a id="downloadSrtLink" class="dl-srt download" download="synth.srt">⬇ SRT 자막 다운로드</a>
+              </div>
+            </div>
+            <div id="singleError" class="error hidden"></div>
+          </div>
+        </section>
+
+        <!-- ---------------- 대본 일괄 ---------------- -->
+        <section id="tab-batch" class="tab-panel">
+          <aside class="batch-left">
+            <div id="dropzone" class="dropzone">
+              <p>여기에 <code>.json</code> 파일을 끌어놓거나 클릭해서 선택</p>
+              <input id="fileInput" type="file" accept=".json,application/json" hidden>
+              <p id="fileName" class="filename"></p>
+            </div>
+
+            <details class="helpbox" id="sampleBox">
+              <summary>JSON 형식이 처음이라면</summary>
+              <div class="helpbox-body">
+                <p><a href="/static/samples/ch99_script.json" download>⬇ 샘플 파일 받기 (ch99_script.json)</a> — 받아서 그대로 끌어놓으면 바로 동작합니다.</p>
+                <p>꼭 필요한 건 <code>scenes[]</code> 안의 <code>scene</code>(번호)과 <code>narration_text</code>(읽을 문장) 둘뿐입니다.</p>
+<pre>{
+  "chapter": 99,
+  "scenes": [
+    {
+      "scene": 1,
+      "narration_text": "읽을 문장입니다.",
+      "srt_text": "자막에 넣을 문장 (생략하면 위와 동일)",
+      "voice_style": "calm_female",
+      "narration_seconds": 3.0
+    }
+  ]
+}</pre>
+                <p><code>voice_style</code>은 <code>config/voice_map.yaml</code>로 M1~F5에 매핑됩니다. 매핑에 없으면 기본 화자로 떨어지고 경고가 뜹니다. 자세한 설명은 <a href="https://github.com" onclick="return false" title="docs/batch-json.md">docs/batch-json.md</a> 참고.</p>
+              </div>
+            </details>
+
+            <div id="batchOptions" class="hidden">
+              <div class="field">
+                <label for="chapterOverride">챕터 ID</label>
+                <input id="chapterOverride" type="text" placeholder="자동 인식">
+              </div>
+              <div class="field">
+                <label for="voiceOverride">보이스 강제 (선택)</label>
+                <select id="voiceOverride"><option value="">scene별 voice_style 사용</option></select>
+              </div>
+              <div class="field">
+                <label for="batchSpeed">속도 <span id="batchSpeedValue">1.00</span></label>
+                <input id="batchSpeed" type="range" min="0.7" max="2.0" step="0.05" value="1.00">
+              </div>
+              <div class="field">
+                <label for="batchTotalStep">품질 (steps) <span id="batchStepValue">8</span></label>
+                <input id="batchTotalStep" type="range" min="5" max="12" step="1" value="8">
+              </div>
+
+              <div class="batch-actions">
+                <button id="runBatch" class="primary">전체 일괄 생성</button>
+                <button id="runBatchPron" class="primary" title="모든 카드에 한국어 발음 전환을 먼저 적용한 뒤 일괄 합성">발음변환 후 일괄 생성</button>
+                <button id="regenChapterSrt" title="카드별로 재생성한 결과까지 반영해 챕터 자막을 다시 합칩니다">SRT 전체 생성</button>
+              </div>
+
+              <div id="bulkLinks" class="hidden bulk-links">
+                <a id="zipLink" class="download" download>📦 전체 zip (음성+자막)</a>
+                <a id="srtLink" class="download" download>📝 챕터 자막 (.srt)</a>
+              </div>
+
+              <div id="batchProgress" class="progress hidden">
+                <div class="bar"><div id="bar" class="fill" style="width:0%"></div></div>
+                <p id="progressText"></p>
+              </div>
+
+              <ul id="warningList" class="warnings"></ul>
+            </div>
+          </aside>
+
+          <div class="batch-right">
+            <p class="hint">대본 <code>.json</code>을 올리면 scene 목록이 카드로 표시됩니다. 카드마다 <strong>발음 (TTS 입력)</strong>과 <strong>자막 (SRT 출력)</strong>이 분리돼 있어 각각 따로 편집할 수 있습니다.<br>
+              좌측 <em>전체 일괄 생성</em>은 카드의 현재 텍스트로 합성하고, <em>발음변환 후 일괄 생성</em>은 모든 카드에 한국어 발음 전환을 먼저 적용한 뒤 합성합니다. 카드별 <em>생성/재생성</em> 후에는 <em>SRT 전체 생성</em>으로 챕터 자막을 다시 합칠 수 있습니다.</p>
+            <div id="sceneList" class="scene-list"></div>
+            <div id="batchError" class="error hidden"></div>
+          </div>
+        </section>
+
+        <!-- ---------------- 표현 태그 실험실 ---------------- -->
+        <section id="tab-taglab" class="tab-panel">
+          <div id="taglabRoot"></div>
+        </section>
+
+        <!-- ---------------- 발음 사전 ---------------- -->
+        <section id="tab-dict" class="tab-panel">
+          <div id="dictRoot"></div>
+        </section>
+
+        <!-- ---------------- API 및 사용법 ---------------- -->
+        <section id="tab-api" class="tab-panel">
+          <div id="apiRoot"></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <footer class="app-footer">
+    <span>Engine: <span id="engineInfo">로딩 중…</span></span>
+    <span class="spacer"></span>
+    <a href="/dict" target="_blank" rel="noopener">발음 사전 새 창</a>
+    <a href="/docs" target="_blank" rel="noopener">OpenAPI 문서</a>
+  </footer>
+
+  <script src="/static/app.js?v=s3"></script>
+  <script src="/static/shell.js?v=s3"></script>
+  <script src="/static/taglab.js?v=s3"></script>
+  <script src="/static/apiguide.js?v=s3"></script>
+</body>
+</html>
