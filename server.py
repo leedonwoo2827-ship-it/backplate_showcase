@@ -1678,7 +1678,9 @@ def post_budget(pid: int, body: BudgetIn) -> Dict[str, Any]:
 
 class SwapIn(BaseModel):
     image_swap: bool
-    # 그림을 화면에 어떻게 앉힐까 — "frame"(액자) · "full"(전면)
+    # 그림을 화면에 어떻게 앉힐까
+    #   "frame" 액자(3:2)  ·  "full" 전면(16:9, 글자를 그림에 굽는다)
+    #   "plate" 배경판(16:9, **글자는 화면이 얹는다**) ← 11판
     image_fit: str = ""
 
 
@@ -1702,8 +1704,14 @@ def post_image_swap(pid: int, body: SwapIn) -> Dict[str, Any]:
     doc = _find(pid)
     doc["image_swap"] = bool(body.image_swap)
     fit = (body.image_fit or "").strip()
-    if fit in ("frame", "full"):
+    if fit in ("frame", "full", "plate"):
         doc["image_fit"] = fit
+        # ★ 판을 바꾸면 **지시문이 낡는다.** 10판 지시문에는 라벨 문구가 박혀
+        #   있고 11판은 그 자리를 비우라고 해야 하므로, 같은 지시문을 쓸 수 없다.
+        #   `s3a` 의 input_hash 가 image_fit 을 읽으니 자동으로 잡히지만,
+        #   사람에게도 보이게 overrides_rev 를 올린다.
+        if fit == "plate":
+            doc["image_swap"] = True   # 배경판은 몸통을 대신하는 것이 전제다
     # 조립이 이 값을 읽는다 — 바꿨으면 덱이 낡은 것으로 잡혀야 한다
     doc["overrides_rev"] = int(doc.get("overrides_rev") or 0) + 1
     ws.save_project(pid, doc["slug"], doc)

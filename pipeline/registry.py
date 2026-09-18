@@ -206,14 +206,19 @@ _DEFS: List[Stage] = [
     # ★ 그림 지시문과 그림 받기를 **가른다.** 지시문 쓰기는 Claude 를 부르고
     #   (돈이 든다 · 자동 실행하면 안 된다), 받기는 결정론이라 낡으면 저절로
     #   돈다. 한 단계에 묶으면 그림 한 장 넣을 때마다 지시문을 다시 사게 된다.
+    # ★ **image_fit 을 반드시 읽는다.** 판이 지시문을 정한다 —
+    #   full(10판) 은 라벨 문구를 그림에 인쇄하라고 시키고,
+    #   plate(11판) 은 그 자리를 비우라고 시킨다. 같은 지시문일 수가 없다.
+    #   이 칸을 빼 두면 판을 바꿔도 **옛 지시문이 그대로 재사용된다**
+    #   (2026-09-18 실측: plate 로 바꿨는데 fmt 10 프롬프트가 나왔다).
     Stage("s3a-imgprompt", "그림 지시문", "images", "claude",
           deps=["s2b-outline"], prompt="imgprompt.md",
-          reads=["title", "models"], code_version=1),
-    # 그림은 **다른 앱**이 만든다(ChatGPT OAuth). 여기는 프롬프트를 내보내고
-    # 번호로 되받기만 한다 — 두 앱을 코드로 잇지 않는다.
+          reads=["title", "models", "image_fit"], code_version=2),
+    # 그림은 이제 **같은 서버**가 만든다(s3c-images-run). 예전에는 다른 앱
+    # (8765 포트)이 만들어서 사람이 JSON 을 들고 창을 옮겨 다녔다.
     Stage("s3b-images", "슬라이드 이미지", "images", "det",
           deps=["s2b-outline", "s5-decisions", "s3a-imgprompt"],
-          reads=["title"], code_version=2),
+          reads=["title", "image_fit"], code_version=3),
     # ★ 둘 다 `narration_rev` 를 읽는다 — **손으로 고친 대본이 낡음의 이유다.**
     #   LLM 은 대본을 처음 만들 때만 쓰고, 발음을 발음기호로 고쳐 쓰거나 자막
     #   문장을 다듬는 일은 그다음에 온다. 그때 다시 만들 것은 음성과 자막이다.

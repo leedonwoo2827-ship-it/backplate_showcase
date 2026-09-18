@@ -2408,3 +2408,6 @@ label.check input { width: auto; }
   border-radius:4px;background:var(--bg);color:var(--ink);font:inherit;font-size:13px}
 .lb-ta{resize:vertical;line-height:1.5}
 .lb-xy{font-size:11px;color:var(--ink-muted);font-variant-numeric:tabular-nums}
+
+/* 판 고르기 — 「이미지 JSON 만들기」 옆. 누르기 전에 눈에 들어와야 한다. */
+.sel-fit{padding:5px 8px;max-width:210px;font-size:12px;cursor:pointer}

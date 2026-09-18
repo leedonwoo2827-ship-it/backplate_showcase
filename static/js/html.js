@@ -48,6 +48,35 @@ export const meta = {
        여기서 바로 돈다(S3c → S3b → S8).
        ★ **구독 할당량을 쓴다.** 이어하기가 되므로(있는 번호는 건너뜀) 두세 장만
          먼저 굽고 눈으로 본 뒤 나머지를 돌리는 것이 정석이다. */
+    /* ★ **판 고르기 — 지시문을 만들기 *전*에 정해야 하는 단 하나의 값.**
+       full(10판)  라벨 문구를 그림에 인쇄하라고 시킨다. 한글이 깨질 수 있다
+       plate(11판) 그 자리를 비우라고 시키고, 글자는 화면이 진짜 텍스트로 얹는다
+       바꾸면 지시문이 낡은 것으로 잡힌다(s3a 가 image_fit 을 읽는다). 그래서
+       「이미지 JSON 만들기」 **옆**에 둔다 — 누르기 전에 눈에 들어와야 한다. */
+    const fit = el("select", "btn sel-fit");
+    fit.title = "그림에 글자를 넣을지 / 배경만 만들고 화면이 글자를 얹을지";
+    for (const [v, t] of [["plate", "배경판 — 글자는 화면이"],
+                          ["full", "전면 — 글자를 그림에"],
+                          ["frame", "액자 3:2 (옛 방식)"]]) {
+      const o = el("option", null, t);
+      o.value = v;
+      fit.appendChild(o);
+    }
+    fit.value = "full";                  // 아래에서 서버 값으로 맞춘다
+    api(`/api/projects/${state.projectId}/deck`)
+      .then((d) => { fit.value = (d?.project?.image_fit) || "frame"; })
+      .catch(() => {});
+    fit.onchange = async () => {
+      try {
+        await api(`/api/projects/${state.projectId}/image-swap`,
+                  { method: "POST",
+                    body: { image_swap: true, image_fit: fit.value } });
+        toast(fit.value === "plate"
+              ? "배경판입니다. 그림에 글자를 넣지 않습니다 — 지시문을 다시 만드세요."
+              : "판을 바꿨습니다 — 지시문을 다시 만드세요.");
+      } catch (e) { toast("실패: " + e.message, "err"); }
+    };
+
     const bake = el("button", "btn");
     bake.type = "button";
     bake.title = "이미지프롬프트.json 을 그대로 넣어 09_이미지/003.png 로 굽습니다"
@@ -60,7 +89,7 @@ export const meta = {
     a.target = "_blank";
     a.rel = "noopener";
     a.append(icon("slide", 14), el("span", null, "슬라이드 보기"));
-    return [mk, bake, ld, a];
+    return [fit, mk, bake, ld, a];
   },
 };
 
