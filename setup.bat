@@ -1,100 +1,112 @@
 @echo off
 setlocal enabledelayedexpansion
 cd /d "%~dp0"
+rem Console to UTF-8 so the Python tools can print Korean without dying.
+rem This file itself stays ASCII - see the note below.
 chcp 65001 >nul
+set PYTHONUTF8=1
 
-echo == backplate-showcase 첫 설치 ==
-echo.
-echo   이 스크립트는 **이 폴더 안에서** 다 끝냅니다. 다른 프로젝트 폴더를
-echo   찾아가지 않으므로 다른 팀원 자리나 여분 PC 에서도 그대로 돕니다.
-echo   여러 번 눌러도 안전합니다 - 이미 있는 것은 건너뜁니다.
+rem ===========================================================================
+rem  backplate-showcase - first-time setup
+rem
+rem  NOTE (ASCII only, CRLF only). Do NOT put Korean text in this file.
+rem  cmd.exe parses a .bat with the *console* codepage. On a Korean console
+rem  (CP949) UTF-8 multibyte gets mis-read as command separators and the
+rem  script falls apart ("'--upgrade' is not recognized"). Korean messages
+rem  belong in tools\doctor.py, which is Python and handles UTF-8 properly.
+rem  Also: LF-only .bat breaks label/goto. Keep CRLF.
+rem
+rem  Everything happens inside THIS folder. No sibling project paths, so a
+rem  teammate or a spare PC works the same. Safe to run repeatedly.
+rem ===========================================================================
+
+echo == backplate-showcase : first-time setup ==
 echo.
 
 where python >nul 2>&1
 if errorlevel 1 (
-  echo [오류] Python 3.11~3.13 이 PATH 에 없습니다.
+  echo [ERROR] Python 3.11-3.13 not found on PATH.
   goto :fail
 )
 where node >nul 2>&1
 if errorlevel 1 (
-  echo [오류] Node 22+ 가 PATH 에 없습니다 - HyperFrames 렌더에 필요합니다.
+  echo [ERROR] Node 22+ not found on PATH. HyperFrames needs it.
   goto :fail
 )
 
-echo [1/6] 콘솔 환경 (.venv-app)
+echo [1/6] console env ^(.venv-app^)
 if not exist ".venv-app\Scripts\python.exe" python -m venv .venv-app
-if errorlevel 1 (echo [오류] venv 생성 실패 & goto :fail)
+if errorlevel 1 (echo [ERROR] venv creation failed. & goto :fail)
 ".venv-app\Scripts\python.exe" -m pip install --quiet --upgrade pip
 ".venv-app\Scripts\python.exe" -m pip install --quiet -e .
-if errorlevel 1 (echo [오류] 의존성 설치 실패 & goto :fail)
+if errorlevel 1 (echo [ERROR] dependency install failed. & goto :fail)
 
-echo [2/6] 엔진 환경 (.venv) - onnxruntime 는 콘솔과 충돌해 따로 둡니다
+echo [2/6] engine env ^(.venv^) - onnxruntime is kept apart from the console
 if not exist ".venv\Scripts\python.exe" python -m venv .venv
-if errorlevel 1 (echo [경고] 엔진 venv 생성 실패 - 음성만 빠집니다)
+if errorlevel 1 echo [WARN] engine venv failed - narration audio will be skipped.
 if exist ".venv\Scripts\python.exe" (
   ".venv\Scripts\python.exe" -m pip install --quiet --upgrade pip
   ".venv\Scripts\python.exe" -m pip install --quiet -r requirements-engine.txt
-  if errorlevel 1 echo [경고] 엔진 의존성 설치 실패 - 음성만 빠집니다
+  if errorlevel 1 echo [WARN] engine deps failed - narration audio will be skipped.
 )
 
-echo [3/6] Node 패키지 (HyperFrames + Playwright)
+echo [3/6] node packages ^(HyperFrames + Playwright^)
 call npm install --silent
-if errorlevel 1 (echo [오류] npm install 실패 & goto :fail)
+if errorlevel 1 (echo [ERROR] npm install failed. & goto :fail)
 
-echo [4/6] 글꼴 (Pretendard)
+echo [4/6] fonts ^(Pretendard^)
 ".venv-app\Scripts\python.exe" tools\get_fonts.py
 
-echo [5/6] 음성 모델 (Supertonic 3, 약 396MB)
+echo [5/6] voice model ^(Supertonic 3, ~396MB^)
 if exist "assets\onnx\vocoder.onnx" (
-  echo        이미 있습니다.
-) else (
-  rem 같은 PC 에 이미 받아 둔 것이 있으면 복사가 빠릅니다.
-  rem   set SUPERTONIC_ASSETS_SRC=D:\...\assets   를 미리 지정해 두면 그걸 씁니다.
-  rem 지정이 없으면 HuggingFace 에서 내려받습니다. 경로를 코드에 박지 않는 이유는
-  rem 그 경로가 이 PC 에만 있기 때문입니다.
-  if defined SUPERTONIC_ASSETS_SRC (
-    if exist "!SUPERTONIC_ASSETS_SRC!\onnx\vocoder.onnx" (
-      echo        복사: !SUPERTONIC_ASSETS_SRC!
-      robocopy "!SUPERTONIC_ASSETS_SRC!" "assets" /E /NFL /NDL /NJH /NJS /XD ".git" >nul
-    )
-  )
-  if not exist "assets\onnx\vocoder.onnx" (
-    where git-lfs >nul 2>&1
-    if errorlevel 1 (
-      echo        [경고] git-lfs 가 없어 모델을 받지 못했습니다.
-      echo               https://git-lfs.com 설치 후 setup.bat 을 다시 실행하세요.
-      echo               ^(음성만 빠지고 덱·자막·큐시트는 그대로 나옵니다^)
-    ) else (
-      echo        내려받는 중... 회선에 따라 몇 분 걸립니다.
-      git lfs install --skip-repo >nul 2>&1
-      git clone --depth 1 https://huggingface.co/Supertone/supertonic-3 assets
-      if errorlevel 1 echo        [경고] 내려받기 실패 - 음성만 빠집니다.
-    )
+  echo        already present.
+  goto :tts_wire
+)
+rem If this PC already has a copy, set SUPERTONIC_ASSETS_SRC to it and we copy.
+rem We do NOT hardcode a sibling path - that path only exists on one machine.
+if defined SUPERTONIC_ASSETS_SRC (
+  if exist "!SUPERTONIC_ASSETS_SRC!\onnx\vocoder.onnx" (
+    echo        copying from !SUPERTONIC_ASSETS_SRC!
+    robocopy "!SUPERTONIC_ASSETS_SRC!" "assets" /E /NFL /NDL /NJH /NJS /XD ".git" >nul
   )
 )
+if exist "assets\onnx\vocoder.onnx" goto :tts_wire
+where git-lfs >nul 2>&1
+if errorlevel 1 (
+  echo        [WARN] git-lfs missing - model not downloaded.
+  echo               Install https://git-lfs.com then re-run setup.bat.
+  echo               ^(Only narration audio is affected; deck/subtitles still work.^)
+  goto :tts_wire
+)
+echo        downloading - a few minutes depending on your link.
+git lfs install --skip-repo >nul 2>&1
+git clone --depth 1 https://huggingface.co/Supertone/supertonic-3 assets
+if errorlevel 1 echo        [WARN] download failed - narration audio will be skipped.
+
+:tts_wire
 ".venv-app\Scripts\python.exe" tools\wire_tts.py
 
-echo [6/6] 진단
+echo [6/6] diagnostics
 ".venv-app\Scripts\python.exe" tools\doctor.py
 if errorlevel 1 (
   echo.
-  echo 위에 ✗ 로 표시된 것을 먼저 해결하세요.
+  echo Fix the items marked with X above, then run setup.bat again.
   pause
   exit /b 1
 )
 
 echo.
-echo 설치가 끝났습니다. run.bat 으로 시작하세요.
+echo Setup complete. Start with run.bat
 echo.
-echo   로그인 둘은 **사람마다 따로** 해야 합니다:
-echo     claude        한 번 실행해 구독 로그인  ^(대본·지시문 작성^)
-echo     codex login   한 번 실행해 ChatGPT 로그인 ^(그림 생성^)
+echo   Two logins are PER PERSON - setup cannot do them for you:
+echo     claude        run once to sign in  ^(script + image directions^)
+echo     codex login   run once to sign in  ^(image generation^)
 echo.
 pause
 exit /b 0
 
 :fail
 echo.
-echo 설치를 마치지 못했습니다. 위 메시지가 이유입니다.
+echo Setup did not finish. The message above says why.
 pause
 exit /b 1

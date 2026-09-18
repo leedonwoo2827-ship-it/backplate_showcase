@@ -24,6 +24,17 @@ APP = Path(__file__).resolve().parent.parent
 if str(APP) not in sys.path:
     sys.path.insert(0, str(APP))
 
+# ★ **한국어 콘솔(CP949)에서 죽지 않게.** 이 파일은 한글과 기호(— · ✓ △ ✗)를
+#   찍는데, cmd 의 기본 코드페이지가 949 면 em dash 하나에 UnicodeEncodeError 로
+#   통째로 죽는다(2026-09-18 실측). 진단기가 죽으면 「무엇이 없는지」를 알 길이
+#   없어지므로, 여기서만은 반드시 살아남아야 한다. errors="replace" 까지 둔다 —
+#   글자 하나가 깨지더라도 표는 나와야 한다.
+try:
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:  # noqa: BLE001  — 파이프로 넘길 때 등
+    pass
+
 OK, WARN, BAD = "OK  ", "주의", "없음"
 _rows: list[tuple[str, str, str, str]] = []   # (상태, 이름, 값, 고치는 법)
 
@@ -89,23 +100,54 @@ def check_node_packages() -> None:
             row(BAD, pkg, "", "npm install")
 
 
+# 엔진 venv — onnxruntime 는 콘솔 의존성과 충돌해서 따로 둔다
+_VENV_PY = APP / ".venv" / ("Scripts/python.exe" if sys.platform == "win32"
+                            else "bin/python")
+
+
 def check_python_packages() -> None:
+    """콘솔 의존성은 **이 파이썬**에서, 엔진 의존성은 **엔진 venv**에서 본다.
+
+    ★ 처음엔 둘 다 이 파이썬에서 찾았는데, onnxruntime 는 `.venv` 에 깔리고
+      doctor 는 `.venv-app` 에서 도니 **멀쩡한데도 없다고 나왔다**
+      (2026-09-18 실측 오탐). venv 를 나눠 둔 구조에서는 어느 venv 를 보는지가
+      곧 답을 가른다.
+    """
     import importlib
-    for mod, label, why, hard in (
-        ("fastapi", "fastapi", "pip install -e .", True),
-        ("uvicorn", "uvicorn", "pip install -e .", True),
-        ("claude_agent_sdk", "claude-agent-sdk", "pip install -e .", True),
-        ("fontTools", "fonttools", "pip install -e .", True),
-        ("sqlalchemy", "SQLAlchemy", "이미지 스튜디오에 필요 — pip install -e .", True),
-        ("httpx", "httpx", "pip install -e .", True),
-        ("onnxruntime", "onnxruntime", "엔진 venv: pip install -r requirements-engine.txt", False),
-        ("soundfile", "soundfile", "엔진 venv: pip install -r requirements-engine.txt", False),
+    for mod, label, why in (
+        ("fastapi", "fastapi", "pip install -e ."),
+        ("uvicorn", "uvicorn", "pip install -e ."),
+        ("claude_agent_sdk", "claude-agent-sdk", "pip install -e ."),
+        ("fontTools", "fonttools", "pip install -e ."),
+        ("sqlalchemy", "SQLAlchemy", "이미지 스튜디오에 필요 — pip install -e ."),
+        ("httpx", "httpx", "pip install -e ."),
     ):
         try:
             m = importlib.import_module(mod)
             row(OK, label, str(getattr(m, "__version__", "")))
         except Exception:
-            row(BAD if hard else WARN, label, "", why)
+            row(BAD, label, "", why)
+
+    # ── 엔진 venv 쪽 ──────────────────────────────────────────────────────
+    if not _VENV_PY.is_file():
+        row(WARN, "엔진 venv", "",
+            "setup.bat 이 .venv 를 만듭니다 — 없으면 음성만 빠집니다")
+        return
+    probe = ("import onnxruntime,soundfile,numpy,yaml;"
+             "print(onnxruntime.__version__, soundfile.__version__)")
+    try:
+        r = subprocess.run([str(_VENV_PY), "-c", probe], capture_output=True,
+                           text=True, timeout=120, encoding="utf-8",
+                           errors="replace")
+        if r.returncode == 0:
+            ort, sf = (r.stdout or "").split()[:2]
+            row(OK, "onnxruntime", f"{ort} (엔진 venv)")
+            row(OK, "soundfile", f"{sf} (엔진 venv)")
+        else:
+            row(WARN, "엔진 의존성", "",
+                ".venv/Scripts/python -m pip install -r requirements-engine.txt")
+    except Exception:
+        row(WARN, "엔진 의존성", "", "엔진 venv 를 확인하지 못했습니다")
 
 
 def check_assets() -> None:
