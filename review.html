@@ -1,0 +1,1846 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>해설영상</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
+
+<script>
+/* ═══════════════════════════════════════════════════════════════════
+   ★ 제목 고치는 곳
+
+   - page   : 브라우저 탭에 뜨는 이름
+   - rounds : 묶음(회차) 이름 바꾸기   "원래이름": "바꿀이름"
+   - items  : 개별 영상 제목 바꾸기
+   여기 안 적은 항목은 자동으로 원래 이름이 나옵니다 (재빌드해도 안 깨짐).
+   ═══════════════════════════════════════════════════════════════════ */
+const TITLES = {
+  page: "해설영상",          // 브라우저 탭 제목
+
+  rounds: {
+    // "1회": "모의고사 1회",
+  },
+
+  items: {
+    // "1회 1~10번": "1~10번 문제 풀이",
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   ★ 상단 탭 구성
+
+   from:"site"  → 기존 사이트의 pd/<pd>/videos.js 를 그대로 읽음 (문제편)
+   from:"drive" → 아래 VIDEOS_BY_TAB 에 적어둔 구글드라이브 영상을 읽음
+   ratio        → 이 탭을 열 때의 기본 화면비 ("16x9" 또는 "9x16")
+   hidden:true  → 상단 메뉴에서 감춤. 준비가 끝나면 이 한 줄만 지우면 바로 나타난다.
+                  (감춰도 ?t=키 주소로는 직접 열어 미리 볼 수 있다)
+   folder:"…"   → 구글드라이브 폴더 id. 서버의 folder.php(같은 폴더에 올려둠)가 폴더를 읽어서
+                  아래 목록의 빈 id 를 자동으로 채운다. 드라이브에 올리기만 하면 됨 — review.html 재업로드 불필요.
+                    · 항목에 file:"q3-01-03" 이 있으면 → 그 이름으로 시작하는 파일 (q3-01-03_….mp4)
+                    · file 이 없으면 → 라벨 앞 숫자와 파일명 앞 숫자 (01장 … ↔ 01-….mp4)
+                    · 어디에도 안 맞는 파일은 "기타" 묶음으로 맨 끝에 붙는다
+                  (로컬에서 더블클릭해 열었을 때는 적어둔 id 만 보인다)
+                  id 를 적어두면 폴더를 못 읽어도 나오니, 가끔 node _context/길이수집.js 로 길이도 채워두면 좋다.
+   ═══════════════════════════════════════════════════════════════════ */
+const TABS = [
+  { key:"bigdata-q", name:"빅분기 필기 문제", heading:"빅데이터분석기사 필기 · 문제 풀이", from:"site",  pd:"bigdata" },
+  { key:"bigdata-t", name:"빅분기 필기 이론", heading:"빅데이터분석기사 필기 · 핵심이론", from:"drive" },
+  { key:"sqld-q",    name:"SQLD 문제",     heading:"SQLD · 문제 풀이", from:"drive" },   // videos.js 가 채워지면 from:"site", pd:"sqld" 로
+  { key:"sqld-t",    name:"SQLD 이론",     heading:"SQLD · 핵심이론", from:"drive" },
+  { key:"adsp-q",    name:"ADsP 문제",     heading:"ADsP 750제 · 문제 풀이", from:"drive", folder:"1Q55xa687vKgOtcsAKVPe0oHkan63zDO2" },   // videos.js 가 채워지면 from:"site", pd:"adsp" 로
+  { key:"adsp-t",    name:"ADsP 이론",     heading:"ADsP · 핵심이론", from:"drive" },
+  { key:"adsp-s1",   name:"쇼츠 1과목",    heading:"ADsP 용어쇼츠 · 1과목 데이터 이해", from:"drive", ratio:"9x16" },
+  { key:"adsp-s2",   name:"쇼츠 2과목",    heading:"ADsP 용어쇼츠 · 2과목 데이터분석 기획", from:"drive", ratio:"9x16", folder:"1N4SNZa0wJogGva9mybJVCUz-Lz2Hu0YM" },
+  { key:"adsp-s3",   name:"쇼츠 3과목",    heading:"ADsP 용어쇼츠 · 3과목 데이터분석", from:"drive", ratio:"9x16", folder:"1J5EOsjzT-SNLI-jBtK6CAha7g4zUrqbA" },
+  { key:"avatar",    name:"헤이젠V4 아바타", heading:"우즈베크어 · 러시아어 자막 · 헤이젠 아바타 적용", from:"drive" },
+
+  /* 영상은 9/14 부터 하루 1편씩 업로드 — folder 로 드라이브 폴더를 직접 읽으므로 올리면 바로 나타난다.
+     note 는 좌측 목록의 첫 묶음 제목 아래에 작은 글씨로 붙는다. */
+  { key:"reading",   name:"단행본 장별강의", heading:"배움을 설계하는 기술의 역사", from:"drive",
+    folder:"1DXKep6Kb7X_1sJqcC18RJzXXWCjnjwG-",
+    note:["장별 소개 영상은 유튜브에 올라가 있습니다.",
+          "분량이 정해진 영상은 테스트하지 않습니다."] }
+];
+
+/* ═══════════════════════════════════════════════════════════════════
+   ★ 구글드라이브 영상을 넣는 곳
+
+   위 TABS 의 key 아래에  "묶음이름": [ 영상, 영상, … ]  형태로 적습니다.
+   id 에는 공유링크의  /file/d/★이부분★/view  만 넣으면 됩니다.
+   ⚠ 폴더가 "링크가 있는 모든 사용자 - 뷰어" 로 공유돼 있어야 재생됩니다.
+   ═══════════════════════════════════════════════════════════════════ */
+const VIDEOS_BY_TAB = {
+
+  "bigdata-t": {
+    "핵심이론": [
+      { label:"1과목 · 빅데이터 분석 기획", id:"1Ay9PSkotMDTt72y3MnkzVgaejIXrKYe-" },
+      { label:"2과목 · 빅데이터 탐색",       id:"1Zsh7dui_-bHIkhHI1rXHrOzKoCP_GnBr" },
+      { label:"3과목 · 빅데이터 모델링",     id:"11Ize_G1LpMmLD3Ge-sn9jd1VkOzgm9j1" },
+      { label:"4과목 · 빅데이터 결과 해석",  id:"1JkhR-eBPS9Nr76eXatGM6wStiJK_EXSa" }
+    ]
+  },
+
+  "sqld-q": {
+    "1회": [
+      { label:"1회 1~10번", id:"10yYVZnX6Xf4B8T_-WBYzpTURDGbCI0Mb" },   // m01-1.static
+      { label:"1회 11~20번", id:"1frljBzC9gaVa3GZQgnHTxn0DU3qQ-54N" },   // m01-2.static
+      { label:"1회 21~30번", id:"1AkHSNYDs6QjrfkM5QfbXwHdFWjT53WEw" },   // m01-3.static
+      { label:"1회 31~40번", id:"1nYIYCHUvCM43ooN_OkQk84ZzZdggQmiR" },   // m01-4.static
+      { label:"1회 41~50번", id:"1UkvLvwNIqJuninPPD_0ne-zV1-vunjdY" }   // m01-5.static
+    ],
+    "2회": [
+      { label:"2회 1~10번", id:"1rCftw2GJs0I36MKxTnNgastNq6xf0dCr" },   // m02-1.static
+      { label:"2회 11~20번", id:"1Jhu0W33uUvYnp3X5gnYZ063UImL1vLHz" },   // m02-2.static
+      { label:"2회 21~30번", id:"1fsjEop3KYRceTV-8vmPfEAaXLBrAMP-u" },   // m02-3.static
+      { label:"2회 31~40번", id:"1OMQWRg7Y3TnsS3v_SLu_vPmAiLqwRZyU" },   // m02-4.static
+      { label:"2회 41~50번", id:"194YHzN0g_nXrBf70KQe-qpkzP5kjj5HU" }   // m02-5.static
+    ],
+    "3회": [
+      { label:"3회 1~10번", id:"1m90U_bce0hr2EI_vO4zOb4LBOpVyYO7i" },   // m03-1.static
+      { label:"3회 11~20번", id:"12AXNSe6Vl0jGwJtJPVZwtvE7968JPiG5" },   // m03-2.static
+      { label:"3회 21~30번", id:"1KYhaimTBCEIFQZ9DrSbFL6UCejjUbse0" },   // m03-3.static
+      { label:"3회 31~40번", id:"1pi4xA2TJD297xk_DUN8n-mtjZe0rX7mf" },   // m03-4.static
+      { label:"3회 41~50번", id:"1ORmsZMny24J7xuxRTqS19AS83hgS_KVC" }   // m03-5.static
+    ],
+    "4회": [
+      { label:"4회 1~10번", id:"1Ge7YTmziFwwHwkjzmtygYWNWZRTtaXaT" },   // m04-1.static
+      { label:"4회 11~20번", id:"1UQnuEIZ8fjgJq_aKOQLJCr_9EjbxjxuV" },   // m04-2.static
+      { label:"4회 21~30번", id:"1m9vJzcw7QSKuPoWeDg7Vm5OWuSXizQNt" },   // m04-3.static
+      { label:"4회 31~40번", id:"1ZgHgHca1xdhctumLQkl83-_KlcZqhvZP" },   // m04-4.static
+      { label:"4회 41~50번", id:"1VgO7XyYq5cup6LrI9m6z6V76SeHXgezb" }   // m04-5.static
+    ],
+    "5회": [
+      { label:"5회 1~10번", id:"17v-hDb5DeGqD5cKb6vN6FAq7WUpCWqLp" },   // m05-1.static
+      { label:"5회 11~20번", id:"1mlN115UbvpF_TBT4-MMYldFKZ9xKoD7i" },   // m05-2.static
+      { label:"5회 21~30번", id:"1rVp-GtbjKb2L-m8lrJzYg8G96ndqwgd0" },   // m05-3.static
+      { label:"5회 31~40번", id:"1GvlZCOy2ybfeAGwSM6qvVJmh_IN8R-sH" },   // m05-4.static
+      { label:"5회 41~50번", id:"1viDPiOd50y-hMkkbAaFkVIGoCz1-E545" }   // m05-5.static
+    ],
+    "6회": [
+      { label:"6회 1~10번", id:"1dShk3UODL9O8kRRh-R4S-zK_cx2ylHXv" },   // m06-1.static
+      { label:"6회 11~20번", id:"1dUsCYcS8gu1zCfEuPcVMi1PMQqFJj77V" },   // m06-2.static
+      { label:"6회 21~30번", id:"10zZOdGxpEpCfg_gn0u_uOY8ctD5xiAkh" },   // m06-3.static
+      { label:"6회 31~40번", id:"1gwa4KbWhngkO-R7zy5fPKyC8CNLf-88M" },   // m06-4.static
+      { label:"6회 41~50번", id:"1vQRu7HoIaKFsZ55ZopkqujCZoGYtrv10" }   // m06-5.static
+    ],
+    "7회": [
+      { label:"7회 1~10번", id:"1slbGOhY54kol5TcmwPU8JqCQzymq3B6l" },   // m07-1.static
+      { label:"7회 11~20번", id:"1JLzdvCpmJTp40z9cKfbp3o6aLZ6sHV71" },   // m07-2.static
+      { label:"7회 21~30번", id:"1dmZuFkjhwYrTd2s-FbXRb3TzdsMQ72l-" },   // m07-3.static
+      { label:"7회 31~40번", id:"18uXjxm1UMSXvfmZGV4qC0TX-bWqI5sqy" },   // m07-4.static
+      { label:"7회 41~50번", id:"1uZSl3QBeaFbZCoHXV7wzQO1pYOASJugc" }   // m07-5.static
+    ],
+    "8회": [
+      { label:"8회 1~10번", id:"1p6Kl28uPKt2CVKQwSx0CAHeMoDLFxZ_F" },   // m08-1.static
+      { label:"8회 11~20번", id:"15TiR10_E7t7x3cKYf3pIZJxKvp834T93" },   // m08-2.static
+      { label:"8회 21~30번", id:"1UtLq2SJk6uTxviSE4jZu2BI0ArNXgCRz" },   // m08-3.static
+      { label:"8회 31~40번", id:"1Y0CZb-guQSBmg4ElynRwopEFwfxC-mVR" },   // m08-4.static
+      { label:"8회 41~50번", id:"10Y8cYvnlNoxQeClK5MYpJ5lkCmwF8gXq" }   // m08-5.static
+    ],
+    "9회": [
+      { label:"9회 1~10번", id:"1hDymH2V0LsmvWgKba0rTAUsRbsXoKEss" },   // m09-1.static
+      { label:"9회 11~20번", id:"1d_jnEdf4vurY6T5VXhyyFWopis-XgA1L" },   // m09-2.static
+      { label:"9회 21~30번", id:"1jrmyjMnkPSanNecEB_uCnRFld15JGq8X" },   // m09-3.static
+      { label:"9회 31~40번", id:"1ZR9RDavqcQ-CZL_Yj4_Y-zIJTPoxGG5F" },   // m09-4.static
+      { label:"9회 41~50번", id:"1n4KwvK_oKGl6cywEEdbAU4HumHJZ7eNO" }   // m09-5.static
+    ],
+    "10회": [
+      { label:"10회 1~10번", id:"1XsdHg2hLz7-sMAa7ZZ9J0vPgYuGb5rox" },   // m10-1.static
+      { label:"10회 11~20번", id:"1IfznqnX2f2S9JOIRbe5grsLz9URqlzzF" },   // m10-2.static
+      { label:"10회 21~30번", id:"1DIgwGC5PHxWDxcnzNgGPc7oRAQ6UvqLd" },   // m10-3.static
+      { label:"10회 31~40번", id:"1AfHMZBBWvGzCwQFsiaA4wpU8iF3Rod65" },   // m10-4.static
+      { label:"10회 41~50번", id:"1eJDDrbuxQpeOsApzcXd4NhrIX9yZElpd" }   // m10-5.static
+    ]
+  },
+
+  "sqld-t": {
+    "핵심이론": [
+      { label:"1과목 · 데이터 모델링의 이해", id:"1Hcbp3TJM9VIfBAVXS2SngP4hFGF7GwZt" },   // 1summary-datamodel-img-motion
+      { label:"2과목 · SQL 기본과 활용", id:"1Mr_FFYVUICUhaTbvHPpJZV5Tqckk0ZJ6" }   // 2summary-sql-img-motion
+    ]
+  },
+  // 폴더: https://drive.google.com/drive/folders/1Q55xa687vKgOtcsAKVPe0oHkan63zDO2
+  "adsp-q": {
+    "1회": [
+      { label:"1회 1~10번", file:"m01-1.static", id:"11mDD73q0h_gzpSXIKfI7O4aOzLpxSiu4" },   // m01-1.static
+      { label:"1회 11~20번", file:"m01-2.static", id:"1nB__qpUiVrot96idtJGrDUUSzRjMcyIW" },   // m01-2.static
+      { label:"1회 21~30번", file:"m01-3.static", id:"1fWB1InmLZTMgX8P9duPjLC_6Wazs_zzz" },   // m01-3.static
+      { label:"1회 31~40번", file:"m01-4.static", id:"1MLI8rXwjcj4hfW65MTTQ_iOZnUSbE6c4" },   // m01-4.static
+      { label:"1회 41~50번", file:"m01-5.static", id:"1AbGjw1kJSuTjXvPbc7Dy43FNqFHXzthk" }    // m01-5.static
+    ],
+    "2회": [
+      { label:"2회 1~10번", file:"m02-1.static", id:"1s4PtiK7Jr7qwvQJMPw2q6Mu00sv0nqHh" },   // m02-1.static
+      { label:"2회 11~20번", file:"m02-2.static", id:"1vwqN85CtFPQZzvA8c6W7gm4Gh-mGZmF4" },   // m02-2.static
+      { label:"2회 21~30번", file:"m02-3.static", id:"1spYhdZ3H6AybsRNAHI2NrMze42RmpLPw" },   // m02-3.static
+      { label:"2회 31~40번", file:"m02-4.static", id:"106NO5Hno6XvVTZrqb34NHJPPz_glPFhZ" },   // m02-4.static
+      { label:"2회 41~50번", file:"m02-5.static", id:"1GBuJGN26QUEoo2DxEcvZHr464KvIsdUN" }    // m02-5.static
+    ],
+    "3회": [
+      { label:"3회 1~10번", file:"m03-1.static", id:"192PbyekSS9ZfCdDxf55BDzAmmTOaQMGi" },   // m03-1.static
+      { label:"3회 11~20번", file:"m03-2.static", id:"1WVtONNjqmY5Xkd3tdgxChlTfiEKvBXc4" },   // m03-2.static
+      { label:"3회 21~30번", file:"m03-3.static", id:"1NvQDZjB_ZU8WClz8lMNuj2jNmzqUwfrF" },   // m03-3.static
+      { label:"3회 31~40번", file:"m03-4.static", id:"1VR8BKb-xY6Th99TMFTki_9-zotCtIlRs" },   // m03-4.static
+      { label:"3회 41~50번", file:"m03-5.static", id:"1r6kjvvu3ASoi-Ic0N8wRvdL1WgOYu9Y9" }    // m03-5.static
+    ],
+    "4회": [
+      { label:"4회 1~10번", file:"m04-1.static", id:"1MH9OvJJVJk2ncys6YTKPkbyPP4gvS2J7" },   // m04-1.static
+      { label:"4회 11~20번", file:"m04-2.static", id:"1PRDyMqoXsZsVCs_tjVjuCeplc8QGu473" },   // m04-2.static
+      { label:"4회 21~30번", file:"m04-3.static", id:"1dgEMNdvHlqCUT6Lf7X0m69u3t8CD5KoB" },   // m04-3.static
+      { label:"4회 31~40번", file:"m04-4.static", id:"1Hc0_T2enpRZniNaigbV3SKi-zU2hrALe" },   // m04-4.static
+      { label:"4회 41~50번", file:"m04-5.static", id:"1Ih06RZ-S5OfKu-3OnRBHj6DFhBk7j3Bt" }    // m04-5.static
+    ],
+    "5회": [
+      { label:"5회 1~10번", file:"m05-1.static", id:"1i0g8-aqfJm_dY1cbuIX92qhVYtab4Bvt" },   // m05-1.static
+      { label:"5회 11~20번", file:"m05-2.static", id:"1HrDQf2kMYObS4rWua6ZugGq5KYXyvY9V" },   // m05-2.static
+      { label:"5회 21~30번", file:"m05-3.static", id:"1pvLcy_RXH3ZhjUFoS-ePYz-BJ7eWu6xT" },   // m05-3.static
+      { label:"5회 31~40번", file:"m05-4.static", id:"1njTpCgtBD150mFDA7dNJwupJ1NobDH_-" },   // m05-4.static
+      { label:"5회 41~50번", file:"m05-5.static", id:"1YVwRBNB_4PLFpqKpsyvCcXmL8iXqtfJ2" }    // m05-5.static
+    ],
+    "6회": [
+      { label:"6회 1~10번", file:"m06-1.static", id:"131OZX0Q-tbUzYgySFolV9fgZVMNLHYcE" },   // m06-1.static
+      { label:"6회 11~20번", file:"m06-2.static", id:"1xgLqx5F3VR4BO3-0PPxfHRHXiCJrbMVO" },   // m06-2.static
+      { label:"6회 21~30번", file:"m06-3.static", id:"1pKkCNbkjmuUIC2UVvmSVdfthYKE5q9cu" },   // m06-3.static
+      { label:"6회 31~40번", file:"m06-4.static", id:"1WUMsomsZSF96tBob02btICfvXcWaftoX" },   // m06-4.static
+      { label:"6회 41~50번", file:"m06-5.static", id:"1YWWF7KzeXhbVQUbBJQQEB3QgLIAbDZs5" }    // m06-5.static
+    ],
+    "7회": [
+      { label:"7회 1~10번", file:"m07-1.static", id:"13sYDtspJ2yZieInkDraSTd1CSdqG5Ljj" },   // m07-1.static
+      { label:"7회 11~20번", file:"m07-2.static", id:"1qaMFm5ZTFRhFXg0Y6Dmpu0R0qHGpGRGI" },   // m07-2.static
+      { label:"7회 21~30번", file:"m07-3.static", id:"1K6AwlShGBdrg7dnTVG8iIXlgKTbA7BvI" },   // m07-3.static
+      { label:"7회 31~40번", file:"m07-4.static", id:"1EqssBDCJ2y2rbheporwAuNm09IeIgFSB" },   // m07-4.static
+      { label:"7회 41~50번", file:"m07-5.static", id:"1yFHjF0ISyl4owPZDbyNVexaWhq83o58t" }    // m07-5.static
+    ],
+    "8회": [
+      { label:"8회 1~10번", file:"m08-1.static", id:"1wRE7utgqNMmj9rii5P7rOAhQdc2Z6kZV" },   // m08-1.static
+      { label:"8회 11~20번", file:"m08-2.static", id:"1hgz5HOI7taq6X9hij9rlFfX2Jiwx7dJ-" },   // m08-2.static
+      { label:"8회 21~30번", file:"m08-3.static", id:"1OCuUs_KMpMEkUWZncL41Rrl2iWZ29I8u" },   // m08-3.static
+      { label:"8회 31~40번", file:"m08-4.static", id:"1X61PzcFTrW4v5KNzRZc_mdWxbMMqowc9" },   // m08-4.static
+      { label:"8회 41~50번", file:"m08-5.static", id:"1EXPy4FQWVFwuXxziZvKNFeEc338R07d4" }    // m08-5.static
+    ],
+    "9회": [
+      { label:"9회 1~10번", file:"m09-1.static", id:"1ZkCExvrHajz_7vmPKVp5bPOuJVoGD9_B" },   // m09-1.static
+      { label:"9회 11~20번", file:"m09-2.static", id:"1zI4b-XXKRxZCDnCtj8dwIzSqpq3Ve2MU" },   // m09-2.static
+      { label:"9회 21~30번", file:"m09-3.static", id:"1bLw9uEJGzFmRsS9hAjfMD8HkIfeawySM" },   // m09-3.static
+      { label:"9회 31~40번", file:"m09-4.static", id:"1e-bubGecJAoJE7qzLwf55qBC4bA6Dg4E" },   // m09-4.static
+      { label:"9회 41~50번", file:"m09-5.static", id:"1YCHhE3iAsjrsSrT6-aVnkp97iynBVHKa" }    // m09-5.static
+    ],
+    "10회": [
+      { label:"10회 1~10번", file:"m10-1.static", id:"1nLbx4Zow6saDg__57xLSlbaDaicmncvF" },   // m10-1.static
+      { label:"10회 11~20번", file:"m10-2.static", id:"1syVyy3AzVFhvBHY1o_l63JHncn058kks" },   // m10-2.static
+      { label:"10회 21~30번", file:"m10-3.static", id:"1xscVJGlw99_k-3XecGGfDul19BPwNlBD" },   // m10-3.static
+      { label:"10회 31~40번", file:"m10-4.static", id:"1CIb7pNS1pYolSfkeLLpQQvYNJfQ13d4T" },   // m10-4.static
+      { label:"10회 41~50번", file:"m10-5.static", id:"1OlsSJewTJxlHP38GQCFRDzPdrPnlT-Cs" }    // m10-5.static
+    ],
+    "11회": [
+      { label:"11회 1~10번", file:"m11-1.static", id:"1COSBjgGcrp8V1A_O_svDc0cAjf-5TdRT" },   // m11-1.static
+      { label:"11회 11~20번", file:"m11-2.static", id:"1sUZw1UExujgozS0w5mSsHAKb0ir2V19L" },   // m11-2.static
+      { label:"11회 21~30번", file:"m11-3.static", id:"1O5cZSofH4qUhJ4Ma8I3-k8AuECOLEj5h" },   // m11-3.static
+      { label:"11회 31~40번", file:"m11-4.static", id:"1Q4MC-tqPPT9h20YVSk043vALNvLw6YPG" },   // m11-4.static
+      { label:"11회 41~50번", file:"m11-5.static", id:"1fvaYhBAB08d_CDzGFr7h1knNfXuDKi6I" }    // m11-5.static
+    ],
+    "12회": [
+      { label:"12회 1~10번", file:"m12-1.static", id:"1uVjU7ekrwjMeyvrUzfXP7Di83ZUSphVC" },   // m12-1.static
+      { label:"12회 11~20번", file:"m12-2.static", id:"12aIlkmwUArS3UP92AS9u3CJ3pkXGnF8M" },   // m12-2.static
+      { label:"12회 21~30번", file:"m12-3.static", id:"1jqBYZT3BiLu2FV1dR5xBS-SAQOs4cWyy" },   // m12-3.static
+      { label:"12회 31~40번", file:"m12-4.static", id:"18-O8d8p_S6UT0vT3RFkTX6DCCAfV74a3" },   // m12-4.static
+      { label:"12회 41~50번", file:"m12-5.static", id:"18CQEZGDhDIcmrFQ5qmp14oIhYGYs42ZK" }    // m12-5.static
+    ],
+    "13회": [
+      { label:"13회 1~10번", file:"m13-1.static", id:"1KxYWMgEEw89TfEla0htuUHtwH5P97slP" },   // m13-1.static
+      { label:"13회 11~20번", file:"m13-2.static", id:"16MDYfQ9ptssSdbdlCWtYmVmFLggfNyU4" },   // m13-2.static
+      { label:"13회 21~30번", file:"m13-3.static", id:"1wSBkBqvSh9NHvYX2TRuThFc2K7nJMUQh" },   // m13-3.static
+      { label:"13회 31~40번", file:"m13-4.static", id:"10O7y_NPmNlprQvLliGWS9mhe4jtztpwr" },   // m13-4.static
+      { label:"13회 41~50번", file:"m13-5.static", id:"1PshwMM2Ra-Qdp9ko63UiYROHekrjHmjl" }    // m13-5.static
+    ],
+    "14회": [
+      { label:"14회 1~10번", file:"m14-1.static", id:"1v0qd4k12nGr4L3xbR6mBpua0EZeRfXBw" },   // m14-1.static
+      { label:"14회 11~20번", file:"m14-2.static", id:"16kToMADpOeSxQS-bGUGr6_G6e_mUWz4-" },   // m14-2.static
+      { label:"14회 21~30번", file:"m14-3.static", id:"1uqBi84RgAOdarBBGYJOHVmPkmdObiqy1" },   // m14-3.static
+      { label:"14회 31~40번", file:"m14-4.static", id:"14R50kaTP-bx01MkZeRxPZYr8kVrL9ePJ" },   // m14-4.static
+      { label:"14회 41~50번", file:"m14-5.static", id:"1HwZ6L6OUJsPePlAE6kRr7wHFADpALzad" }    // m14-5.static
+    ],
+    "15회": [
+      { label:"15회 1~10번", file:"m15-1.static", id:"1KM0354f5MUK63jALr9IX3Ctc-vnHGkFD" },   // m15-1.static
+      { label:"15회 11~20번", file:"m15-2.static", id:"1cyvLq5gwPrEb5c6syzvIpw3jgoIxmocD" },   // m15-2.static
+      { label:"15회 21~30번", file:"m15-3.static", id:"1zz8NsklexETjpp9Ec0ZUhLVCQoVLWMoe" },   // m15-3.static
+      { label:"15회 31~40번", file:"m15-4.static", id:"19uWdPryW1NI73KW6qItNERNhc6izpkdb" },   // m15-4.static
+      { label:"15회 41~50번", file:"m15-5.static", id:"1cjzy5_ZjKKAWRPhwFCtj4p1iCzyO5Qyz" }    // m15-5.static
+    ]
+  },
+  "adsp-t": {
+    "핵심이론": [
+      { label:"1과목 · 데이터 이해",       id:"1rlAYrSlmRTstoEDthC7WkNUxxzJeIhu7" },   // 1summary-understanding-img-motion
+      { label:"2과목 · 데이터분석 기획",   id:"1NB4JMgF6aXoOeAm5eafh1kOtZlB5322t" },   // 2summary-planning-img-motion
+      { label:"3과목 · 데이터분석",        id:"1yyyJRh72XD9JnGKSufMKvNwlYmmfMHo5" }    // 3summary-analysis-img-motion
+    ]
+  },
+  "adsp-s1": {
+    "1. 데이터의 정의와 유형": [
+      { label:"데이터의 정의", id:"1hO5nzTN3UcRV7CUj6Ui21mNz-efwwC_v" },   // q1-01-01_데이터의-정의
+      { label:"존재적 특성과 당위적 특성", id:"1314k-_LXocCHIC0z3tK1ERfA3WWvPt4b" },   // q1-01-02_존재적-특성과-당위적-특성
+      { label:"정성적 데이터와 정량적 데이터", id:"1e3fBttKLkh52RnNnI1h7ja2-JKGJXZ9T" },   // q1-01-03_정성적-데이터와-정량적-데이터
+      { label:"암묵지와 형식지", id:"1gTES6tGGZkzr4Th3PkjyPl197pdz8VN9" }   // q1-01-04_암묵지와-형식지
+    ],
+    "2. 정형·반정형·비정형 데이터": [
+      { label:"정형·반정형·비정형 구분 기준", id:"15Yg7uLwR24ywum6m9EO9wN9sGvsRCPZL" },   // q1-02-01_구분-기준-—-스키마가-어디에-있는가
+      { label:"정형·반정형·비정형 처리 방식 비교", id:"1fl-OdrEPH9oPWZ5SOKDYxKfp04gRqb5c" },   // q1-02-01b_구분-기준-—-스키마가-어디에-있는가
+      { label:"정형 데이터", id:"1vW8GcqDZnIBFiNMr9xTD8IMxabL9APtd" },   // q1-02-02_정형-데이터
+      { label:"반정형 데이터", id:"18E8LSWwZ-c2wd3Gb-qz6uOGR18qqOo7k" },   // q1-02-03_반정형-데이터
+      { label:"비정형 데이터", id:"1jA8j0DKiBK_b56KROY9WCQLso3ZZLL3M" }   // q1-02-04_비정형-데이터
+    ],
+    "3. DIKW 피라미드": [
+      { label:"피라미드의 구조와 순서", id:"1pyU0a_CQcEJy87NNTTPxXO1ThbjFuYPd" },   // q1-03-01_피라미드의-구조와-순서
+      { label:"데이터 단계", id:"1VhzobjdLFW4txfYKRLEe2sdqOZfggLZ2" },   // q1-03-02_데이터-단계
+      { label:"정보 단계", id:"1mWx-72afOZFBvP7SCEl5AP9q1vEh7YWZ" },   // q1-03-03_정보-단계
+      { label:"지식 단계", id:"1fU8o55ViJZNu-hPkfF8DLFPEaN7D3T2z" },   // q1-03-04_지식-단계
+      { label:"지혜 단계", id:"1CK9DCaimolJygIWqWcPJFt75enOjXHA1" },   // q1-03-05_지혜-단계
+      { label:"지식과 지혜를 가르는 기준", id:"1o2TbPv2i3ioGNxDgl1WGw8b_yGOjAqaP" }   // q1-03-06_지식과-지혜를-가르는-기준
+    ],
+    "4. 데이터베이스": [
+      { label:"통합된 데이터와 저장된 데이터", id:"1emmfnUq650to3vxjcHR5R7ZMYr39U-hK" },   // q1-04-01_데이터베이스의-정의를-이루는-네-성질
+      { label:"공용 데이터와 운영 데이터", id:"1jrcLoBe2PM0lRoQCK1l49Ax7U3UdP7sq" },   // q1-04-01b_데이터베이스의-정의를-이루는-네-성질
+      { label:"운영 데이터", id:"1I1uqepOn0lg5NL48E1rksIPWz7Kslvlr" },   // q1-04-02_운영-데이터
+      { label:"정의 성질과 다른 운용 특징 구분", id:"11n-y4ks8kFqiPWst3nteEMgw3tHMJMVo" },   // q1-04-03_데이터베이스의-네-가지-특징
+      { label:"실시간 접근성 등 네 운용 특징", id:"1Z8FVJxrPkZZjIX7XhXYaW8seW49vvKtq" },   // q1-04-03b_데이터베이스의-네-가지-특징
+      { label:"계속적 변화", id:"1phrT1S1xZjUcpYNA_tFiypY4xzKxxIfq" },   // q1-04-04_계속적-변화
+      { label:"내용에 의한 참조", id:"1cuOGORi8RDoCp2UME6iQjYjFT1HjRxyu" },   // q1-04-05_내용에-의한-참조
+      { label:"데이터 웨어하우스의 비휘발성과의 구별", id:"1lJAYP4qYzpyGg-I2lZFNG3WTUeu3TPV_" }   // q1-04-06_데이터-웨어하우스의-비휘발성과의-구별
+    ],
+    "5. DBMS": [
+      { label:"DBMS의 등장 배경", id:"1kUKFeJM8MnuNI8qEyedvGqUv9WZHUM7s" },   // q1-05-01_DBMS의-등장-배경
+      { label:"데이터 독립성", id:"1-kaK_aGuH6hZBMcyQlCjfWvRAqaw9ztl" },   // q1-05-02_데이터-독립성
+      { label:"DBMS 세 기능 정의·조작·제어 개관", id:"1-7noStgWT9VWtPgegu-UPMgnJwKkasvj" },   // q1-05-03_DBMS의-세-기능-—-정의-조작-제어
+      { label:"정의·조작·제어 기능별 세부 내용", id:"" },
+      { label:"중복 최소화와 무결성", id:"" },
+      { label:"DBMS의 단점", id:"" },
+      { label:"관계형 DBMS와 NoSQL", id:"" }
+    ],
+    "6. 빅데이터의 정의": [
+      { label:"상대적 개념", id:"" },
+      { label:"세 층위 정의", id:"" }
+    ],
+    "7. 빅데이터의 특성 — 3V와 5V": [
+      { label:"3V와 5V 항목 구성 소개", id:"" },
+      { label:"지문 속 3V·5V 항목 가려내는 법", id:"" },
+      { label:"Volume(규모)", id:"" },
+      { label:"Variety(다양성)", id:"" },
+      { label:"Velocity(속도)", id:"" },
+      { label:"Veracity(진실성·정확성)", id:"" },
+      { label:"Value(가치)", id:"" }
+    ],
+    "8. 빅데이터가 만든 변화": [
+      { label:"네 가지 변화 한눈에", id:"" },
+      { label:"표본조사 → 전수조사", id:"" },
+      { label:"질 → 양", id:"" },
+      { label:"사전처리 → 사후처리", id:"" },
+      { label:"인과관계 → 상관관계", id:"" },
+      { label:"상관관계는 인과관계를 보장하지 않는다", id:"" }
+    ],
+    "9. 빅데이터의 가치 산정": [
+      { label:"가치 산정이 어려운 세 가지 이유", id:"" },
+      { label:"데이터의 재사용·재조합", id:"" },
+      { label:"새로운 가치 창출", id:"" },
+      { label:"분석 기술의 발전", id:"" },
+      { label:"데이터는 비경합재다", id:"" },
+      { label:"가치 산정이 어려운 이유가 아닌 것", id:"" }
+    ],
+    "10. 빅데이터의 위기 요인과 통제 방안": [
+      { label:"세 위기 요인과 통제 방안", id:"" },
+      { label:"사생활 침해", id:"" },
+      { label:"책임 원칙 훼손", id:"" },
+      { label:"데이터 오용", id:"" },
+      { label:"익명화와 재식별 위험", id:"" }
+    ],
+    "11. 데이터 사이언스와 데이터 사이언티스트": [
+      { label:"데이터 사이언스의 세 구성 영역", id:"" },
+      { label:"통계학과의 차이", id:"" },
+      { label:"하드 스킬", id:"" },
+      { label:"소프트 스킬", id:"" },
+      { label:"생성형 AI가 있어도 소프트 스킬은 필요하다", id:"" }
+    ],
+    "12. 빅데이터 처리 기술 — 하둡 생태계": [
+      { label:"하둡의 계층 구조", id:"" },
+      { label:"HDFS", id:"" },
+      { label:"블록 수 계산 — 올림 규칙", id:"" },
+      { label:"복제본 수와 소비 용량 계산", id:"" },
+      { label:"맵 태스크 수와 복제본 수의 구별", id:"" },
+      { label:"MapReduce", id:"" },
+      { label:"Spark", id:"" },
+      { label:"YARN", id:"" },
+      { label:"하둡 생태계 주변 도구 개관", id:"" },
+      { label:"하이브·스쿱 등 도구별 역할", id:"" }
+    ],
+    "13. 생성형 AI": [
+      { label:"생성형 AI의 원리", id:"" },
+      { label:"환각(Hallucination)", id:"" },
+      { label:"학습 데이터의 편향", id:"" },
+      { label:"통제 방안 — 근거 제시와 사람의 검토", id:"" },
+      { label:"개인정보와 정보 유출", id:"" },
+      { label:"파운데이션 모델과 미세조정", id:"" }
+    ]
+  },
+  // 폴더: https://drive.google.com/drive/folders/1N4SNZa0wJogGva9mybJVCUz-Lz2Hu0YM
+  "adsp-s2": {
+    "1. 분석 기획의 방향성": [
+      { label:"분석 기획에서 반드시 검토할 세 가지", file:"q2-01-01", id:"1RmH4BaTjuVyzc44PkDrnbBxPThDcUdbt" },   // q2-01-01_분석-기획에서-반드시-검토할-세-가지
+      { label:"과제 중심적 접근 방식", file:"q2-01-02", id:"1qcJLlMKMYSPPwynlr0mtiZQBvssWj2uK" },   // q2-01-02_과제-중심적-접근-방식
+      { label:"장기적 마스터플랜 접근 방식", file:"q2-01-03", id:"18nfpHVXomz780qKFzUJ98ojg4MzJ6i0y" },   // q2-01-03_장기적-마스터플랜-접근-방식
+      { label:"두 접근의 비교와 병행", file:"q2-01-04", id:"1hpADJM-6yz4ATboFRtaUb8bBeShU2_MV" }    // q2-01-04_두-접근의-비교와-병행
+    ],
+    "2. 분석 주제의 네 가지 유형": [
+      { label:"분류의 두 축 — 분석 대상과 분석 방법", file:"q2-02-01", id:"1HzA2x6mvTbwF61ALkvvPtK-by0x64sDq" },   // q2-02-01_분류의-두-축-—-분석-대상과-분석-방법
+      { label:"최적화와 솔루션", file:"q2-02-02", id:"1yKfy2TywBKSUJ95gXIjAUuOT9FhT6to8" },   // q2-02-02_최적화와-솔루션
+      { label:"통찰과 발견", file:"q2-02-03", id:"1jO2yXgtD0ta8AlGhRp5HspUd_g5ihRBF" }    // q2-02-03_통찰과-발견
+    ],
+    "3. 분석 방법론의 계층 구조": [
+      { label:"단계·태스크·스텝", file:"q2-03-01", id:"1UoIFvGg6kHaO9X_LuNZd3jsQmDUmMBEH" }    // q2-03-01_단계-태스크-스텝
+    ],
+    "4. KDD 분석 절차": [
+      { label:"KDD 5단계", file:"q2-04-01", id:"1DusRMLycUZiuPIZ-9Ux105XGeUZe8So5" },   // q2-04-01_KDD-5단계
+      { label:"데이터 전처리와 데이터 변환의 구분", file:"q2-04-02", id:"1ueZIfUXTX-6PNtjSTWCrAi3e00l32DQm" },   // q2-04-02_데이터-전처리와-데이터-변환의-구분
+      { label:"데이터 마이닝과 결과 평가", file:"q2-04-03", id:"1XGy65v7gw1apmUo0SalJanDsk4NAP4uL" }    // q2-04-03_데이터-마이닝과-결과-평가
+    ],
+    "5. CRISP-DM": [
+      { label:"CRISP-DM 6단계", file:"q2-05-01", id:"1Cgqsin8v6JMzrQa1s1m7D4kNeYsefU-L" },   // q2-05-01_CRISP-DM-6단계
+      { label:"4레벨 계층 구조와 반복 수행", file:"q2-05-02", id:"1ndYHfVYHluIidyOsro6yN8fEjiiK3dL5" },   // q2-05-02_4레벨-계층-구조와-반복-수행
+      { label:"모델링·평가·전개의 경계", file:"q2-05-03", id:"1Pr_6M-ekcpwOpu3mwtkbbdwUjsBwHApb" },   // q2-05-03_모델링-평가-전개의-경계
+      { label:"KDD·CRISP-DM 단계 수 차이와 구분", file:"q2-05-04", id:"" },
+      { label:"CRISP-DM 기준 단계별 짝 맞추기", file:"q2-05-05", id:"" },
+      { label:"흔들리지 않는 고정 대응 두 쌍", file:"q2-05-06", id:"" }
+    ],
+    "6. 빅데이터 분석 방법론 5단계": [
+      { label:"5단계의 순서", file:"q2-06-01", id:"" },
+      { label:"분석 기획 단계", file:"q2-06-02", id:"" },
+      { label:"데이터 준비 단계", file:"q2-06-03", id:"" },
+      { label:"데이터 분석 단계", file:"q2-06-04", id:"" },
+      { label:"시스템 구현 단계", file:"q2-06-05", id:"" },
+      { label:"평가 및 전개 단계", file:"q2-06-06", id:"" },
+      { label:"산출물로 단계 역추적하는 암기법", file:"q2-06-07", id:"" },
+      { label:"분석·구현·평가 단계 산출물", file:"q2-06-08", id:"" }
+    ],
+    "7. 하향식 접근 방식": [
+      { label:"하향식 접근의 4단계", file:"q2-07-01", id:"" },
+      { label:"문제 탐색 — 비즈니스 모델 기반 5개 영역", file:"q2-07-02", id:"" },
+      { label:"분석 기회 발굴의 범위 확장 4관점", file:"q2-07-03", id:"" },
+      { label:"문제 정의", file:"q2-07-04", id:"" },
+      { label:"해결방안 탐색", file:"q2-07-05", id:"" },
+      { label:"타당성 검토", file:"q2-07-06", id:"" }
+    ],
+    "8. 상향식 접근·프로토타이핑·디자인 씽킹": [
+      { label:"상향식 접근", file:"q2-08-01", id:"" },
+      { label:"프로토타이핑", file:"q2-08-02", id:"" },
+      { label:"디자인 씽킹", file:"q2-08-03", id:"" }
+    ],
+    "9. 분석 과제 관리의 5대 영역": [
+      { label:"데이터 사이즈와 컴플렉시티", file:"q2-09-01", id:"" },
+      { label:"모형 복잡도와 정확도·정밀도", file:"q2-09-02", id:"" },
+      { label:"Accuracy와 Precision", file:"q2-09-03", id:"" }
+    ],
+    "10. 분석 프로젝트의 리스크 대응": [
+      { label:"회피·전이·완화·수용의 뜻", file:"q2-10-01", id:"" },
+      { label:"네 가지 대응의 구체적 사례", file:"q2-10-02", id:"" },
+      { label:"수용을 적용할 수 있는 범위", file:"q2-10-03", id:"" }
+    ],
+    "11. 분석 마스터플랜과 과제 우선순위": [
+      { label:"마스터플랜 수립의 두 축", file:"q2-11-01", id:"" },
+      { label:"ROI 관점의 4V", file:"q2-11-02", id:"" },
+      { label:"시급성·난이도 두 축과 네 칸", file:"q2-11-03", id:"" },
+      { label:"사분면 명칭과 추진 순서 비교", file:"q2-11-04", id:"" }
+    ],
+    "12. 분석 수준 진단": [
+      { label:"분석 준비도", file:"q2-12-01", id:"" },
+      { label:"분석 성숙도", file:"q2-12-02", id:"" },
+      { label:"준비도·성숙도 축과 준비형", file:"q2-12-03", id:"" },
+      { label:"정착형과 확산형 두 유형", file:"q2-12-04", id:"" }
+    ],
+    "13. 분석 거버넌스": [
+      { label:"분석 거버넌스의 5개 구성요소", file:"q2-13-01", id:"" },
+      { label:"데이터 거버넌스 체계의 4개 구성요소", file:"q2-13-02", id:"" }
+    ],
+    "14. 데이터 분석 조직 구조": [
+      { label:"집중 구조", file:"q2-14-01", id:"" },
+      { label:"기능 구조", file:"q2-14-02", id:"" },
+      { label:"분산 구조", file:"q2-14-03", id:"" }
+    ]
+  },
+  // 폴더: https://drive.google.com/drive/folders/1J5EOsjzT-SNLI-jBtK6CAha7g4zUrqbA
+  "adsp-s3": {
+    "1. R 언어와 데이터 구조": [
+      { label:"벡터의 강제 형변환", file:"q3-01-01", id:"1nUSX70Q82og9fDp6wv4yjTjiZJHJji68" },   // q3-01-01_벡터의-강제-형변환
+      { label:"리스트 — length 와 인덱싱", file:"q3-01-02", id:"1p6pN8qgaQJhONljPLYsOqYkTK9mcXfPX" },   // q3-01-02_리스트-—-length-와-인덱싱
+      { label:"행렬 — byrow 와 인덱싱", file:"q3-01-03", id:"10bLmbi6v0FDsd96W2c0UxdSpY1tIxZzS" },   // q3-01-03_행렬-—-byrow-와-인덱싱
+      { label:"행렬과 데이터프레임의 차이", file:"q3-01-04", id:"1RM8XVPCoYulYV_y2EB6oWEQhKHjEP_Xz" },   // q3-01-04_행렬과-데이터프레임의-차이
+      { label:"요인(factor)", file:"q3-01-05", id:"1TcfSpnO8Z3h9tq2jn4uuPNzlr6dk9Oec" },   // q3-01-05_요인-factor
+      { label:"벡터 재활용 규칙", file:"q3-01-06", id:"1CrDEtg5zVPnv19XwrWQlYD0S8UVvhP00" },   // q3-01-06_벡터-재활용-규칙
+      { label:"apply 계열 함수", file:"q3-01-07", id:"1YbF-hSGQFqXxjYs5go8Jzg4mvwJ_ZKMv" },   // q3-01-07_apply-계열-함수
+      { label:"탐색·결합 함수", file:"q3-01-08", id:"" },
+      { label:"데이터 마트 구축용 패키지", file:"q3-01-09", id:"" }
+    ],
+    "2. 데이터 마트와 변수 생성": [
+      { label:"데이터 웨어하우스와 데이터 마트", file:"q3-02-01", id:"" },
+      { label:"요약변수와 파생변수 ①", file:"q3-02-02", id:"" },
+      { label:"요약변수와 파생변수 ②", file:"q3-02-02b", id:"" },
+      { label:"요약변수와 다중공선성", file:"q3-02-03", id:"" }
+    ],
+    "3. 결측값 처리": [
+      { label:"결측 메커니즘 — MCAR · MAR · NMAR ①", file:"q3-03-01", id:"" },
+      { label:"결측 메커니즘 — MCAR · MAR · NMAR ②", file:"q3-03-01b", id:"" },
+      { label:"완전제거법", file:"q3-03-02", id:"" },
+      { label:"평균대치법", file:"q3-03-03", id:"" },
+      { label:"단순확률대치법", file:"q3-03-04", id:"" },
+      { label:"다중대치법", file:"q3-03-05", id:"" },
+      { label:"핫덱 대치와 콜드덱 대치", file:"q3-03-06", id:"" },
+      { label:"코드값으로 기록된 결측", file:"q3-03-07", id:"" }
+    ],
+    "4. 기술통계와 이상값": [
+      { label:"중심경향치 — 평균·중앙값·최빈값", file:"q3-04-01", id:"" },
+      { label:"왜도", file:"q3-04-02", id:"" },
+      { label:"변동계수", file:"q3-04-03", id:"" },
+      { label:"사분위수와 IQR", file:"q3-04-04", id:"" },
+      { label:"이상값 판정 — IQR 기준과 ESD 기준 ①", file:"q3-04-05", id:"" },
+      { label:"이상값 판정 — IQR 기준과 ESD 기준 ②", file:"q3-04-05b", id:"" },
+      { label:"상자그림", file:"q3-04-06", id:"" },
+      { label:"이상값의 처리", file:"q3-04-07", id:"" },
+      { label:"절사평균", file:"q3-04-08", id:"" }
+    ],
+    "5. 표본추출": [
+      { label:"층화추출", file:"q3-05-01", id:"" },
+      { label:"비례배분법", file:"q3-05-02", id:"" },
+      { label:"계통추출", file:"q3-05-03", id:"" },
+      { label:"군집(집락)추출", file:"q3-05-04", id:"" },
+      { label:"비확률추출", file:"q3-05-05", id:"" }
+    ],
+    "6. 확률분포": [
+      { label:"이산확률분포와 연속확률분포", file:"q3-06-01", id:"" },
+      { label:"이항분포", file:"q3-06-02", id:"" },
+      { label:"포아송분포", file:"q3-06-03", id:"" },
+      { label:"정규분포와 표준화", file:"q3-06-04", id:"" },
+      { label:"t분포", file:"q3-06-05", id:"" },
+      { label:"카이제곱분포와 F분포", file:"q3-06-06", id:"" }
+    ],
+    "7. 추정과 신뢰구간": [
+      { label:"점추정량의 성질", file:"q3-07-01", id:"" },
+      { label:"표준편차와 표준오차", file:"q3-07-02", id:"" },
+      { label:"중심극한정리", file:"q3-07-03", id:"" },
+      { label:"모평균의 신뢰구간", file:"q3-07-04", id:"" },
+      { label:"모비율의 신뢰구간", file:"q3-07-05", id:"" },
+      { label:"오차한계와 표본 크기 결정", file:"q3-07-06", id:"" }
+    ],
+    "8. 가설검정": [
+      { label:"제1종 오류와 제2종 오류", file:"q3-08-01", id:"" },
+      { label:"검정력과 α–β 상충", file:"q3-08-02", id:"" },
+      { label:"p-value 의 정의", file:"q3-08-03", id:"" },
+      { label:"신뢰구간과 검정 결론의 일치", file:"q3-08-04", id:"" },
+      { label:"단측검정과 양측검정", file:"q3-08-05", id:"" },
+      { label:"카이제곱 독립성 검정", file:"q3-08-06", id:"" }
+    ],
+    "9. 상관분석": [
+      { label:"피어슨 상관계수", file:"q3-09-01", id:"" },
+      { label:"피어슨 상관계수의 한계", file:"q3-09-02", id:"" },
+      { label:"스피어만 순위상관계수", file:"q3-09-03", id:"" },
+      { label:"상관계수와 결정계수", file:"q3-09-04", id:"" },
+      { label:"상관과 인과", file:"q3-09-05", id:"" },
+      { label:"허위상관과 편상관", file:"q3-09-06", id:"" }
+    ],
+    "10. 회귀분석": [
+      { label:"단순선형회귀", file:"q3-10-01", id:"" },
+      { label:"제곱합 분해와 결정계수", file:"q3-10-02", id:"" },
+      { label:"수정 결정계수", file:"q3-10-03", id:"" },
+      { label:"회귀계수의 해석", file:"q3-10-04", id:"" },
+      { label:"F 검정과 t 검정 ①", file:"q3-10-05", id:"" },
+      { label:"F 검정과 t 검정 ②", file:"q3-10-05b", id:"" },
+      { label:"더미변수", file:"q3-10-06", id:"" },
+      { label:"표준화계수", file:"q3-10-07", id:"" },
+      { label:"회귀분석의 가정과 잔차 진단 ①", file:"q3-10-08", id:"" },
+      { label:"회귀분석의 가정과 잔차 진단 ②", file:"q3-10-08b", id:"" },
+      { label:"다중공선성", file:"q3-10-09", id:"" },
+      { label:"VIF와 공차한계", file:"q3-10-10", id:"" },
+      { label:"변수 선택법", file:"q3-10-11", id:"" },
+      { label:"AIC와 모형 비교", file:"q3-10-12", id:"" }
+    ],
+    "11. 시계열분석": [
+      { label:"정상성", file:"q3-11-01", id:"" },
+      { label:"차분과 변환 ①", file:"q3-11-02", id:"" },
+      { label:"차분과 변환 ②", file:"q3-11-02b", id:"" },
+      { label:"백색잡음과 확률보행", file:"q3-11-03", id:"" },
+      { label:"단위근 검정", file:"q3-11-04", id:"" },
+      { label:"ARIMA(p, d, q)", file:"q3-11-05", id:"" },
+      { label:"ACF·PACF 로 모형 식별하기 ①", file:"q3-11-06", id:"" },
+      { label:"ACF·PACF 로 모형 식별하기 ②", file:"q3-11-06b", id:"" },
+      { label:"AR 모형과 MA 모형", file:"q3-11-07", id:"" },
+      { label:"시계열의 구성요소", file:"q3-11-08", id:"" },
+      { label:"가법모형과 승법모형", file:"q3-11-09", id:"" },
+      { label:"계절조정계열", file:"q3-11-10", id:"" },
+      { label:"지수평활법", file:"q3-11-11", id:"" }
+    ],
+    "12. 주성분분석": [
+      { label:"주성분분석의 개념", file:"q3-12-01", id:"" },
+      { label:"고유값", file:"q3-12-02", id:"" },
+      { label:"주성분 개수의 결정 ①", file:"q3-12-03", id:"" },
+      { label:"주성분 개수의 결정 ②", file:"q3-12-03b", id:"" },
+      { label:"주성분의 직교성", file:"q3-12-04", id:"" },
+      { label:"적재값 해석", file:"q3-12-05", id:"" },
+      { label:"주성분분석과 요인분석", file:"q3-12-06", id:"" }
+    ],
+    "13. 다차원척도법": [
+      { label:"다차원척도법(MDS)의 개념", file:"q3-13-01", id:"" },
+      { label:"스트레스 값", file:"q3-13-02", id:"" },
+      { label:"계량적 MDS와 비계량적 MDS", file:"q3-13-03", id:"" },
+      { label:"주성분분석과 다차원척도법 비교", file:"q3-13-04", id:"" }
+    ],
+    "14. 의사결정나무": [
+      { label:"분리 기준과 불순도", file:"q3-14-01", id:"" },
+      { label:"지니 지수", file:"q3-14-02", id:"" },
+      { label:"엔트로피와 정보이득", file:"q3-14-03", id:"" },
+      { label:"CART · C4.5 · CHAID", file:"q3-14-04", id:"" },
+      { label:"정지규칙과 가지치기", file:"q3-14-05", id:"" }
+    ],
+    "15. 로지스틱 회귀": [
+      { label:"로짓과 오즈", file:"q3-15-01", id:"" },
+      { label:"오즈비", file:"q3-15-02", id:"" },
+      { label:"예측확률 계산", file:"q3-15-03", id:"" },
+      { label:"계수의 유의성 판단", file:"q3-15-04", id:"" }
+    ],
+    "16. 인공신경망": [
+      { label:"구조와 순전파", file:"q3-16-01", id:"" },
+      { label:"활성화 함수", file:"q3-16-02", id:"" },
+      { label:"기울기 소실", file:"q3-16-03", id:"" },
+      { label:"역전파와 학습률", file:"q3-16-04", id:"" },
+      { label:"입력 표준화·은닉 노드 수·해석력", file:"q3-16-05", id:"" },
+      { label:"단층 퍼셉트론의 한계", file:"q3-16-06", id:"" },
+      { label:"자기조직화지도(SOM)", file:"q3-16-07", id:"" }
+    ],
+    "17. SVM · KNN · 나이브 베이즈": [
+      { label:"서포트벡터머신 — 마진과 서포트벡터", file:"q3-17-01", id:"" },
+      { label:"커널 트릭", file:"q3-17-02", id:"" },
+      { label:"비용 C와 소프트 마진", file:"q3-17-03", id:"" },
+      { label:"KNN", file:"q3-17-04", id:"" },
+      { label:"나이브 베이즈", file:"q3-17-05", id:"" }
+    ],
+    "18. 앙상블 기법": [
+      { label:"배깅과 부스팅 ①", file:"q3-18-01", id:"" },
+      { label:"배깅과 부스팅 ②", file:"q3-18-01b", id:"" },
+      { label:"랜덤포레스트", file:"q3-18-02", id:"" },
+      { label:"OOB 자료와 OOB 오차", file:"q3-18-03", id:"" },
+      { label:"앙상블의 한계", file:"q3-18-04", id:"" }
+    ],
+    "19. 모형 평가": [
+      { label:"혼동행렬과 정확도", file:"q3-19-01", id:"" },
+      { label:"정밀도 · 재현율 · 특이도 ①", file:"q3-19-02", id:"" },
+      { label:"정밀도 · 재현율 · 특이도 ②", file:"q3-19-02b", id:"" },
+      { label:"F1 스코어", file:"q3-19-03", id:"" },
+      { label:"임계값과 정밀도–재현율 상충", file:"q3-19-04", id:"" },
+      { label:"ROC 곡선과 AUC", file:"q3-19-05", id:"" },
+      { label:"이익도표와 향상도 곡선", file:"q3-19-06", id:"" },
+      { label:"홀드아웃과 교차검증", file:"q3-19-07", id:"" },
+      { label:"부트스트랩", file:"q3-19-08", id:"" },
+      { label:"과대적합의 확인", file:"q3-19-09", id:"" }
+    ],
+    "20. 군집분석": [
+      { label:"계층적 군집과 덴드로그램", file:"q3-20-01", id:"" },
+      { label:"연결법", file:"q3-20-02", id:"" },
+      { label:"거리 측도 ①", file:"q3-20-03", id:"" },
+      { label:"거리 측도 ②", file:"q3-20-03b", id:"" },
+      { label:"k-평균 군집", file:"q3-20-04", id:"" },
+      { label:"군집 수 결정 — 엘보우와 실루엣", file:"q3-20-05", id:"" },
+      { label:"혼합분포군집과 EM 알고리즘", file:"q3-20-06", id:"" }
+    ],
+    "21. 연관분석": [
+      { label:"지지도", file:"q3-21-01", id:"" },
+      { label:"신뢰도", file:"q3-21-02", id:"" },
+      { label:"향상도 ①", file:"q3-21-03", id:"" },
+      { label:"향상도 ②", file:"q3-21-03b", id:"" },
+      { label:"Apriori 알고리즘", file:"q3-21-04", id:"" }
+    ],
+    "22. 텍스트마이닝": [
+      { label:"텍스트마이닝의 절차와 전처리 ①", file:"q3-22-01", id:"" },
+      { label:"텍스트마이닝의 절차와 전처리 ②", file:"q3-22-01b", id:"" },
+      { label:"문서-단어 행렬(DTM)", file:"q3-22-02", id:"" },
+      { label:"TF-IDF", file:"q3-22-03", id:"" }
+    ],
+    "23. 사회연결망분석": [
+      { label:"밀도", file:"q3-23-01", id:"" },
+      { label:"연결정도 중심성", file:"q3-23-02", id:"" },
+      { label:"매개 중심성과 근접 중심성", file:"q3-23-03", id:"" },
+      { label:"방향 연결망", file:"q3-23-04", id:"" }
+    ],
+    "24. 데이터 시각화": [
+      { label:"시각화의 다섯 유형", file:"q3-24-01", id:"" },
+      { label:"공간 시각화 기법", file:"q3-24-02", id:"" },
+      { label:"다변량 비교 기법", file:"q3-24-03", id:"" }
+    ]
+  },
+
+  "avatar": {
+    "데모 영상": [
+      { label:"전체 화면", id:"1f3gvhAKJx4ZhPOIfjcSdTAixb8XQboGn" },   // full.mp4
+      { label:"패널 화면", id:"14JlLxc_ClQ77LE_PC9qRTKANbBTEyndS" }    // panel.mp4
+    ]
+  },
+
+  // 폴더: https://drive.google.com/drive/folders/1DXKep6Kb7X_1sJqcC18RJzXXWCjnjwG-  (9/14 현재 비어 있음 — 하루 1편씩 올라올 예정)
+  "reading": {
+    "전 17장": [
+      { label:"01장 편지와 전파가 만든 교실", id:"1Vn7y7lrFoDamRFf-NB015_jwRUVxOLdr" },   // 01-img-motion.mp4
+      { label:"02장 화면 속으로 들어온 지식", id:"" },
+      { label:"03장 기계가 가르치기 시작하다", id:"" },
+      { label:"04장 웹이 연 학습의 문", id:"" },
+      { label:"05장 구독하고 공유하고 연결되다", id:"" },
+      { label:"06장 클릭과 터치가 만든 상호작용", id:"" },
+      { label:"07장 관계 속에서 배우다", id:"" },
+      { label:"08장 보이지 않는 연결의 언어", id:"" },
+      { label:"09장 열린 지식의 시대", id:"" },
+      { label:"10장 손안의 교실", id:"" },
+      { label:"11장 현실을 넘어선 배움", id:"" },
+      { label:"12장 게임처럼 배우다", id:"" },
+      { label:"13장 데이터가 읽는 배움", id:"" },
+      { label:"14장 닫힌 교실, 열린 화면", id:"" },
+      { label:"15장 평생학습하는 기계", id:"" },
+      { label:"16장 말하는 기계, 질문하는 교실", id:"" },
+      { label:"17장 AI와 교사의 공존", id:"" }
+    ]
+  }
+};
+
+/* ═══════════════════════════════════════════════════════════════════
+   영상 길이(초) — 파일 id 별.  직접 적을 필요 없음.
+   새 영상을 넣은 뒤   node _context/길이수집.js   한 번 돌리면 자동으로 채워진다.
+   ═══════════════════════════════════════════════════════════════════ */
+const DUR = {
+  "1--c88_6A77XlI-nGuEzcbtQMsqILHWSW":509,
+  "1-7noStgWT9VWtPgegu-UPMgnJwKkasvj":25,
+  "1-kaK_aGuH6hZBMcyQlCjfWvRAqaw9ztl":49,
+  "106NO5Hno6XvVTZrqb34NHJPPz_glPFhZ":564,
+  "10O7y_NPmNlprQvLliGWS9mhe4jtztpwr":634,
+  "10Y8cYvnlNoxQeClK5MYpJ5lkCmwF8gXq":561,
+  "10bLmbi6v0FDsd96W2c0UxdSpY1tIxZzS":45,
+  "10bjAD312T6chUD2O-1fpoCZHD0g8quzo":562,
+  "10yYVZnX6Xf4B8T_-WBYzpTURDGbCI0Mb":514,
+  "10zZOdGxpEpCfg_gn0u_uOY8ctD5xiAkh":542,
+  "11Ize_G1LpMmLD3Ge-sn9jd1VkOzgm9j1":5730,
+  "11Nc6ONQYITbwMEEhkmyfsk3xrMS9d-BY":549,
+  "11mDD73q0h_gzpSXIKfI7O4aOzLpxSiu4":507,
+  "11n-y4ks8kFqiPWst3nteEMgw3tHMJMVo":16,
+  "12AXNSe6Vl0jGwJtJPVZwtvE7968JPiG5":549,
+  "12aIlkmwUArS3UP92AS9u3CJ3pkXGnF8M":577,
+  "1314k-_LXocCHIC0z3tK1ERfA3WWvPt4b":23,
+  "131OZX0Q-tbUzYgySFolV9fgZVMNLHYcE":525,
+  "13YQpTEvLXPE3Nxd8THW9i9FupHaXWpgL":527,
+  "13phd1jRkAp2mu_DkXC_XJUYJgVyhsPi3":539,
+  "13s51W_nOVHYcG-bOWHOV6t3mDDHLFWGF":576,
+  "13sYDtspJ2yZieInkDraSTd1CSdqG5Ljj":578,
+  "14J7Sdm-w6ht07LGEjkGHgMlvPm8NCsbA":525,
+  "14JlLxc_ClQ77LE_PC9qRTKANbBTEyndS":1482,
+  "14R50kaTP-bx01MkZeRxPZYr8kVrL9ePJ":671,
+  "15TiR10_E7t7x3cKYf3pIZJxKvp834T93":555,
+  "15Yg7uLwR24ywum6m9EO9wN9sGvsRCPZL":44,
+  "15ifpFk7Es4fWpJHRmLihUzY7A3EJ6cEZ":581,
+  "15nfc5Ms-5oMpTsNHPArZhFCYA2QwldZs":593,
+  "15uZ3OqKRCBLDcHBvpUhdLMpFoUI6qBl3":538,
+  "16MDYfQ9ptssSdbdlCWtYmVmFLggfNyU4":595,
+  "16kDSgKuPZXItABJs9XFWf0Gm0u0XRdiJ":554,
+  "16kToMADpOeSxQS-bGUGr6_G6e_mUWz4-":562,
+  "17LDk0qwoeJD_quWBqO1hTIRWQRys9Igk":627,
+  "17gXzHy3l8zlTD32ONupIE4pzigPRaPRL":559,
+  "17v-hDb5DeGqD5cKb6vN6FAq7WUpCWqLp":522,
+  "18-O8d8p_S6UT0vT3RFkTX6DCCAfV74a3":607,
+  "181ePHQR-dPXHwjmwG3QcLnCSidt9ON6N":548,
+  "18CQEZGDhDIcmrFQ5qmp14oIhYGYs42ZK":628,
+  "18E8LSWwZ-c2wd3Gb-qz6uOGR18qqOo7k":43,
+  "18nfpHVXomz780qKFzUJ98ojg4MzJ6i0y":44,
+  "18uXjxm1UMSXvfmZGV4qC0TX-bWqI5sqy":507,
+  "192PbyekSS9ZfCdDxf55BDzAmmTOaQMGi":556,
+  "194YHzN0g_nXrBf70KQe-qpkzP5kjj5HU":490,
+  "19uWdPryW1NI73KW6qItNERNhc6izpkdb":632,
+  "1AbGjw1kJSuTjXvPbc7Dy43FNqFHXzthk":557,
+  "1AfHMZBBWvGzCwQFsiaA4wpU8iF3Rod65":540,
+  "1AkHSNYDs6QjrfkM5QfbXwHdFWjT53WEw":480,
+  "1Ay9PSkotMDTt72y3MnkzVgaejIXrKYe-":4604,
+  "1BZ9rbsXtJx4isjwIcVDBVzG_OhLMaJYx":527,
+  "1CIb7pNS1pYolSfkeLLpQQvYNJfQ13d4T":619,
+  "1CK9DCaimolJygIWqWcPJFt75enOjXHA1":43,
+  "1CLVdxYABKcwJxPI4TCB1A-tkgmRL1r02":534,
+  "1COSBjgGcrp8V1A_O_svDc0cAjf-5TdRT":559,
+  "1C_YTHACwW57S6dzgrCyb1Q2IfODK3IuI":539,
+  "1Cgqsin8v6JMzrQa1s1m7D4kNeYsefU-L":47,
+  "1CrDEtg5zVPnv19XwrWQlYD0S8UVvhP00":14,
+  "1DIgwGC5PHxWDxcnzNgGPc7oRAQ6UvqLd":477,
+  "1DusRMLycUZiuPIZ-9Ux105XGeUZe8So5":44,
+  "1ES27L0O0m31iAHdX6xeP_4_5paavFUAW":539,
+  "1EXPy4FQWVFwuXxziZvKNFeEc338R07d4":596,
+  "1EqssBDCJ2y2rbheporwAuNm09IeIgFSB":643,
+  "1FqLHuubw0aqp5kmhAlXz5qmnP9gfhZen":554,
+  "1GBuJGN26QUEoo2DxEcvZHr464KvIsdUN":599,
+  "1GNUTUPZPcCZ_2PyzRcdR0mWqef0Gu4mx":545,
+  "1Ge7YTmziFwwHwkjzmtygYWNWZRTtaXaT":555,
+  "1GmWjPdP6IQkhZYNdt5KFf4czEt6KqJKq":560,
+  "1GuTMIx1xpQV3Xn_mteomHFISLN4S14bl":555,
+  "1GvlZCOy2ybfeAGwSM6qvVJmh_IN8R-sH":591,
+  "1Hc0_T2enpRZniNaigbV3SKi-zU2hrALe":615,
+  "1Hcbp3TJM9VIfBAVXS2SngP4hFGF7GwZt":3165,
+  "1HrDQf2kMYObS4rWua6ZugGq5KYXyvY9V":580,
+  "1HwZ6L6OUJsPePlAE6kRr7wHFADpALzad":636,
+  "1HzA2x6mvTbwF61ALkvvPtK-by0x64sDq":34,
+  "1I1uqepOn0lg5NL48E1rksIPWz7Kslvlr":28,
+  "1IfznqnX2f2S9JOIRbe5grsLz9URqlzzF":512,
+  "1Ih06RZ-S5OfKu-3OnRBHj6DFhBk7j3Bt":616,
+  "1JLzdvCpmJTp40z9cKfbp3o6aLZ6sHV71":508,
+  "1JhcX4fd9c00LeY38DTob4hxs3xyhUBa1":541,
+  "1Jhu0W33uUvYnp3X5gnYZ063UImL1vLHz":531,
+  "1JkhR-eBPS9Nr76eXatGM6wStiJK_EXSa":7247,
+  "1Jn384LwXNktFL2_jhwtYru5wgRQNOLuY":544,
+  "1K6AwlShGBdrg7dnTVG8iIXlgKTbA7BvI":621,
+  "1KILwNCFwRX8_KvrjL0iuHE3VDc7VG2Z0":505,
+  "1KM0354f5MUK63jALr9IX3Ctc-vnHGkFD":520,
+  "1KYhaimTBCEIFQZ9DrSbFL6UCejjUbse0":523,
+  "1Kd4SIlfuxQA4IGR_Nu8il_H4L9cqkjeO":586,
+  "1KxYWMgEEw89TfEla0htuUHtwH5P97slP":632,
+  "1M4F17UQufhwYrPBEj8Zd3HZ1-6Aomsm8":547,
+  "1MH9OvJJVJk2ncys6YTKPkbyPP4gvS2J7":484,
+  "1MLI8rXwjcj4hfW65MTTQ_iOZnUSbE6c4":594,
+  "1Mr_FFYVUICUhaTbvHPpJZV5Tqckk0ZJ6":5424,
+  "1NB4JMgF6aXoOeAm5eafh1kOtZlB5322t":2850,
+  "1NKxdv8EGv7L8kT4bGf5GOrzun4Sp1oui":555,
+  "1NPkYpuVf17S9iTNylLfSW1M7rUrqItpA":568,
+  "1NbQKf6QB-Qpc-GEF5RDLaHkf6UbFCXOw":559,
+  "1NvQDZjB_ZU8WClz8lMNuj2jNmzqUwfrF":534,
+  "1O5cZSofH4qUhJ4Ma8I3-k8AuECOLEj5h":605,
+  "1OCuUs_KMpMEkUWZncL41Rrl2iWZ29I8u":655,
+  "1OMQWRg7Y3TnsS3v_SLu_vPmAiLqwRZyU":510,
+  "1ORmsZMny24J7xuxRTqS19AS83hgS_KVC":513,
+  "1OcEKMEZZ1a_XHQ_dLxfbR1gJVv3A9Q1X":558,
+  "1OlsSJewTJxlHP38GQCFRDzPdrPnlT-Cs":589,
+  "1PMqgdGPSWSj5xmvR5Q94tbWyL36VzNW1":564,
+  "1PNm22DJ6RGKuefTVTkO9Y43jhoRPOx94":518,
+  "1PRDyMqoXsZsVCs_tjVjuCeplc8QGu473":505,
+  "1Phzo4C2zslqkCUWuP-TCg4867GTI34Bj":539,
+  "1PlRkwiT63RGDA7PDPcSNH4Oo4BZu-Cth":544,
+  "1Pr_6M-ekcpwOpu3mwtkbbdwUjsBwHApb":44,
+  "1PshwMM2Ra-Qdp9ko63UiYROHekrjHmjl":583,
+  "1Q4MC-tqPPT9h20YVSk043vALNvLw6YPG":649,
+  "1QvV5rLi6ytHonNF-SPTItqFGpc2BcEmD":541,
+  "1RM8XVPCoYulYV_y2EB6oWEQhKHjEP_Xz":43,
+  "1RmH4BaTjuVyzc44PkDrnbBxPThDcUdbt":47,
+  "1TcfSpnO8Z3h9tq2jn4uuPNzlr6dk9Oec":41,
+  "1UQnuEIZ8fjgJq_aKOQLJCr_9EjbxjxuV":555,
+  "1UkvLvwNIqJuninPPD_0ne-zV1-vunjdY":524,
+  "1UoIFvGg6kHaO9X_LuNZd3jsQmDUmMBEH":44,
+  "1UtLq2SJk6uTxviSE4jZu2BI0ArNXgCRz":550,
+  "1V4W_b54A9nVvunME_9aWNdZKFTs1kDVD":591,
+  "1VR8BKb-xY6Th99TMFTki_9-zotCtIlRs":600,
+  "1VgO7XyYq5cup6LrI9m6z6V76SeHXgezb":535,
+  "1VhzobjdLFW4txfYKRLEe2sdqOZfggLZ2":28,
+  "1Vn7y7lrFoDamRFf-NB015_jwRUVxOLdr":1438,
+  "1W1X_dxQgk_SKO5qprx4U18Vqkqfbh3Em":570,
+  "1WUMsomsZSF96tBob02btICfvXcWaftoX":620,
+  "1WVtONNjqmY5Xkd3tdgxChlTfiEKvBXc4":630,
+  "1Wwup6XAf77VA93QfFzxIZvaUoo0ErzzD":640,
+  "1X61PzcFTrW4v5KNzRZc_mdWxbMMqowc9":657,
+  "1XGy65v7gw1apmUo0SalJanDsk4NAP4uL":36,
+  "1XQDw3WKbT48ksbBp9g3mgc-k1x2dxaB-":578,
+  "1XTv3483FTzo5a4iHUtxxDBNagrWeYAV6":520,
+  "1XsdHg2hLz7-sMAa7ZZ9J0vPgYuGb5rox":556,
+  "1Y0CZb-guQSBmg4ElynRwopEFwfxC-mVR":559,
+  "1YCHhE3iAsjrsSrT6-aVnkp97iynBVHKa":595,
+  "1YLcNVpNDyRfbwZQp2XvHd7slmw4OJRQ6":533,
+  "1YVwRBNB_4PLFpqKpsyvCcXmL8iXqtfJ2":586,
+  "1YWWF7KzeXhbVQUbBJQQEB3QgLIAbDZs5":559,
+  "1YaOmorxtVK3dffJKg87I5PT6952JV08l":537,
+  "1YbF-hSGQFqXxjYs5go8Jzg4mvwJ_ZKMv":46,
+  "1Z8FVJxrPkZZjIX7XhXYaW8seW49vvKtq":32,
+  "1ZR9RDavqcQ-CZL_Yj4_Y-zIJTPoxGG5F":564,
+  "1ZgHgHca1xdhctumLQkl83-_KlcZqhvZP":563,
+  "1ZkCExvrHajz_7vmPKVp5bPOuJVoGD9_B":527,
+  "1Zsh7dui_-bHIkhHI1rXHrOzKoCP_GnBr":5405,
+  "1aQTok5kbarwyY1XkL0qLQOCaPnZDMo7p":601,
+  "1bLw9uEJGzFmRsS9hAjfMD8HkIfeawySM":671,
+  "1cjzy5_ZjKKAWRPhwFCtj4p1iCzyO5Qyz":601,
+  "1cuOGORi8RDoCp2UME6iQjYjFT1HjRxyu":33,
+  "1cyvLq5gwPrEb5c6syzvIpw3jgoIxmocD":557,
+  "1d9Rgmh7haq2p4Rgpl0xpWfTocy361Q6f":545,
+  "1dShk3UODL9O8kRRh-R4S-zK_cx2ylHXv":561,
+  "1dUsCYcS8gu1zCfEuPcVMi1PMQqFJj77V":538,
+  "1d_7NBd2Gl5KEGlapld3zKvCyh87UTw-w":578,
+  "1d_jnEdf4vurY6T5VXhyyFWopis-XgA1L":516,
+  "1dgEMNdvHlqCUT6Lf7X0m69u3t8CD5KoB":593,
+  "1dmZuFkjhwYrTd2s-FbXRb3TzdsMQ72l-":485,
+  "1e-bubGecJAoJE7qzLwf55qBC4bA6Dg4E":639,
+  "1e3fBttKLkh52RnNnI1h7ja2-JKGJXZ9T":44,
+  "1eJDDrbuxQpeOsApzcXd4NhrIX9yZElpd":540,
+  "1eYNBaubmyfT6ziifu-Cu9UpqzUtKSfTP":538,
+  "1emmfnUq650to3vxjcHR5R7ZMYr39U-hK":32,
+  "1eorM68bZxDdSUKQp46pIqpOxZd_cugN0":545,
+  "1eqPcpYQaquzMHuYrH9SF2_Hjs0IgytIn":529,
+  "1f3gvhAKJx4ZhPOIfjcSdTAixb8XQboGn":1482,
+  "1fU8o55ViJZNu-hPkfF8DLFPEaN7D3T2z":51,
+  "1fWB1InmLZTMgX8P9duPjLC_6Wazs_zzz":603,
+  "1fl-OdrEPH9oPWZ5SOKDYxKfp04gRqb5c":43,
+  "1frljBzC9gaVa3GZQgnHTxn0DU3qQ-54N":489,
+  "1fsjEop3KYRceTV-8vmPfEAaXLBrAMP-u":528,
+  "1fvaYhBAB08d_CDzGFr7h1knNfXuDKi6I":563,
+  "1gTES6tGGZkzr4Th3PkjyPl197pdz8VN9":24,
+  "1gfndMXQGy5OYnoXpjXjIlcAv3-Gd4BxT":541,
+  "1gwa4KbWhngkO-R7zy5fPKyC8CNLf-88M":454,
+  "1hDymH2V0LsmvWgKba0rTAUsRbsXoKEss":492,
+  "1hO5nzTN3UcRV7CUj6Ui21mNz-efwwC_v":26,
+  "1hVaRMjeRaKpvUpsUwrJI6uWLVFNf1gAE":543,
+  "1hgz5HOI7taq6X9hij9rlFfX2Jiwx7dJ-":581,
+  "1hpADJM-6yz4ATboFRtaUb8bBeShU2_MV":45,
+  "1i0g8-aqfJm_dY1cbuIX92qhVYtab4Bvt":515,
+  "1iJwAOzJ2Etc0a7MSleZJUTgXrl3iL5OH":506,
+  "1jA8j0DKiBK_b56KROY9WCQLso3ZZLL3M":46,
+  "1jO2yXgtD0ta8AlGhRp5HspUd_g5ihRBF":33,
+  "1jax94dGtT6sIz68xHZTNzyeLs6bY81LM":522,
+  "1jfC55zyFljyQciIfFxIkP_tU7VQHkp4S":589,
+  "1jqBYZT3BiLu2FV1dR5xBS-SAQOs4cWyy":567,
+  "1jrcLoBe2PM0lRoQCK1l49Ax7U3UdP7sq":31,
+  "1jrmyjMnkPSanNecEB_uCnRFld15JGq8X":504,
+  "1kUKFeJM8MnuNI8qEyedvGqUv9WZHUM7s":44,
+  "1lJAYP4qYzpyGg-I2lZFNG3WTUeu3TPV_":22,
+  "1ldY9WtPGklCRQfQPzTsd42KaD9bHN2cn":536,
+  "1m90U_bce0hr2EI_vO4zOb4LBOpVyYO7i":513,
+  "1m9vJzcw7QSKuPoWeDg7Vm5OWuSXizQNt":562,
+  "1mWx-72afOZFBvP7SCEl5AP9q1vEh7YWZ":41,
+  "1mlN115UbvpF_TBT4-MMYldFKZ9xKoD7i":482,
+  "1mv8ukaJPk-IaeWaPYozuuiaS8L825eqW":609,
+  "1n4KwvK_oKGl6cywEEdbAU4HumHJZ7eNO":549,
+  "1n9Ew99fD1QAl0Ra0xApK82UqjVntO5Hm":496,
+  "1nB__qpUiVrot96idtJGrDUUSzRjMcyIW":596,
+  "1nLbx4Zow6saDg__57xLSlbaDaicmncvF":595,
+  "1nMlIXGVbDb0V-YP6--mokH6Ura-OWbxH":533,
+  "1nUSX70Q82og9fDp6wv4yjTjiZJHJji68":40,
+  "1nYIYCHUvCM43ooN_OkQk84ZzZdggQmiR":525,
+  "1ndYHfVYHluIidyOsro6yN8fEjiiK3dL5":42,
+  "1njTpCgtBD150mFDA7dNJwupJ1NobDH_-":650,
+  "1o2TbPv2i3ioGNxDgl1WGw8b_yGOjAqaP":32,
+  "1p6Kl28uPKt2CVKQwSx0CAHeMoDLFxZ_F":578,
+  "1p6pN8qgaQJhONljPLYsOqYkTK9mcXfPX":42,
+  "1pKkCNbkjmuUIC2UVvmSVdfthYKE5q9cu":585,
+  "1phrT1S1xZjUcpYNA_tFiypY4xzKxxIfq":40,
+  "1pi4xA2TJD297xk_DUN8n-mtjZe0rX7mf":549,
+  "1pvLcy_RXH3ZhjUFoS-ePYz-BJ7eWu6xT":608,
+  "1pyU0a_CQcEJy87NNTTPxXO1ThbjFuYPd":47,
+  "1q8oiM3LmJsP_Rl1RpGM8H1QwjaHlNEY6":518,
+  "1qaMFm5ZTFRhFXg0Y6Dmpu0R0qHGpGRGI":638,
+  "1qcJLlMKMYSPPwynlr0mtiZQBvssWj2uK":44,
+  "1qq4ROvIgYwTxsFX1t5ujs7anvOiNSi9P":545,
+  "1r6kjvvu3ASoi-Ic0N8wRvdL1WgOYu9Y9":588,
+  "1rCftw2GJs0I36MKxTnNgastNq6xf0dCr":562,
+  "1rVp-GtbjKb2L-m8lrJzYg8G96ndqwgd0":472,
+  "1rc8ZG1PSJlglISPuPLFzJyX7ypuniXWo":608,
+  "1riC5wiaUmiQnxLhbMcyxUNzI3j9Npico":576,
+  "1rlAYrSlmRTstoEDthC7WkNUxxzJeIhu7":3676,
+  "1s4PtiK7Jr7qwvQJMPw2q6Mu00sv0nqHh":514,
+  "1sOjlfhc1WA-qewoJ7iLqRIvXaXHJmmOk":565,
+  "1sUZw1UExujgozS0w5mSsHAKb0ir2V19L":597,
+  "1slbGOhY54kol5TcmwPU8JqCQzymq3B6l":542,
+  "1spYhdZ3H6AybsRNAHI2NrMze42RmpLPw":569,
+  "1svKUfqThBoKFritgqPmJBe4NNYLmrU_6":521,
+  "1syVyy3AzVFhvBHY1o_l63JHncn058kks":515,
+  "1tD3V_zpHnvQqY0QdHa7E0VouHf_sNSM5":593,
+  "1uVjU7ekrwjMeyvrUzfXP7Di83ZUSphVC":569,
+  "1uZSl3QBeaFbZCoHXV7wzQO1pYOASJugc":507,
+  "1ueZIfUXTX-6PNtjSTWCrAi3e00l32DQm":41,
+  "1ulZdRzU-ofNlvrlVpeTgqkHatiHR3e3q":543,
+  "1uqBi84RgAOdarBBGYJOHVmPkmdObiqy1":640,
+  "1v0qd4k12nGr4L3xbR6mBpua0EZeRfXBw":576,
+  "1vQRu7HoIaKFsZ55ZopkqujCZoGYtrv10":437,
+  "1vW8GcqDZnIBFiNMr9xTD8IMxabL9APtd":33,
+  "1vXcbTei-4NqBErLgG0gnKAVmm5TrmDBM":580,
+  "1viDPiOd50y-hMkkbAaFkVIGoCz1-E545":569,
+  "1vwqN85CtFPQZzvA8c6W7gm4Gh-mGZmF4":588,
+  "1wLuS-oT8V2RcHI8lhlaYsn0fRGK5Htw0":566,
+  "1wRE7utgqNMmj9rii5P7rOAhQdc2Z6kZV":582,
+  "1wSBkBqvSh9NHvYX2TRuThFc2K7nJMUQh":621,
+  "1xDkos9-AoOKh6lL1xDP2BFc7x8HbLS_8":549,
+  "1xM35e0WDvS2R4W3NCjZQODSYxkvm6eb6":576,
+  "1xgLqx5F3VR4BO3-0PPxfHRHXiCJrbMVO":537,
+  "1xscVJGlw99_k-3XecGGfDul19BPwNlBD":620,
+  "1yFHjF0ISyl4owPZDbyNVexaWhq83o58t":636,
+  "1yKfy2TywBKSUJ95gXIjAUuOT9FhT6to8":25,
+  "1yls3hUwf10sGLTQo8mbaf2F27M9a5qK5":535,
+  "1yyyJRh72XD9JnGKSufMKvNwlYmmfMHo5":9022,
+  "1zI4b-XXKRxZCDnCtj8dwIzSqpq3Ve2MU":600,
+  "1z__euEKGiIuUxhRnsgfBHI3OvZSAe0Au":523,
+  "1zz8NsklexETjpp9Ec0ZUhLVCQoVLWMoe":620
+};
+</script>
+
+<style>
+:root{
+  --bg:#0c0f1a;
+  --bg-2:#121627;
+  --panel:#161b30;
+  --line:rgba(255,255,255,.08);
+  --line-2:rgba(255,255,255,.14);
+  --text:#eef1f8;
+  --muted:#8b93ad;
+  --muted-2:#666e88;
+  --accent:#6d8bff;
+  --accent-soft:rgba(109,139,255,.14);
+  --radius:14px;
+
+  /* 영상 주변(무대) — 아이보리 */
+  --stage:#f4f1e8;
+  --stage-text:#23272f;
+  --stage-muted:#7b7566;
+}
+
+*{box-sizing:border-box;}
+
+html,body{height:100%;margin:0;}
+
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:"Pretendard Variable",Pretendard,-apple-system,"Malgun Gothic","Apple SD Gothic Neo",sans-serif;
+  font-size:14px;
+  line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;}
+input{font:inherit;}
+
+/* ───────── 상단바 ───────── */
+.topbar{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:12px;
+  padding:0 20px;
+  height:60px;
+  background:linear-gradient(180deg,rgba(255,255,255,.045),rgba(255,255,255,0));
+  border-bottom:1px solid var(--line);
+}
+
+.home{
+  flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;
+  width:36px;height:36px;
+  border-radius:9px;
+  color:var(--muted);
+  transition:background .16s,color .16s;
+}
+.home svg{width:19px;height:19px;}
+.home:hover{background:rgba(255,255,255,.06);color:#fff;}
+
+.pdtabs{display:flex;gap:3px;overflow-x:auto;scrollbar-width:none;}
+.pdtabs::-webkit-scrollbar{display:none;}
+.pdtab{
+  padding:8px 13px;
+  border-radius:9px;
+  font-size:13.5px;
+  font-weight:600;
+  color:var(--muted);
+  transition:background .16s,color .16s;
+  white-space:nowrap;
+}
+.pdtab:hover{color:#fff;background:rgba(255,255,255,.05);}
+.pdtab.on{color:#fff;background:var(--accent-soft);box-shadow:inset 0 0 0 1px rgba(109,139,255,.32);}
+
+.tools{margin-left:auto;display:flex;align-items:center;gap:10px;}
+
+.ratio{
+  display:flex;
+  padding:3px;
+  border-radius:9px;
+  background:rgba(255,255,255,.05);
+  box-shadow:inset 0 0 0 1px var(--line);
+}
+.ratio button{
+  padding:5px 12px;
+  border-radius:7px;
+  font-size:12px;
+  font-weight:600;
+  color:var(--muted);
+  transition:background .16s,color .16s;
+}
+.ratio button.on{background:rgba(255,255,255,.12);color:#fff;}
+
+/* ───────── 레이아웃 ───────── */
+.shell{flex:1 1 auto;display:flex;min-height:0;}
+
+/* ───────── 사이드바 ───────── */
+.side{
+  flex:0 0 316px;
+  display:flex;
+  flex-direction:column;
+  min-height:0;
+  background:var(--bg-2);
+  border-right:1px solid var(--line);
+}
+
+.sidehead{
+  padding:16px 16px 0;
+  font-size:14px;
+  font-weight:700;
+  letter-spacing:-.01em;
+  line-height:1.4;
+  color:var(--text);
+}
+
+.search{padding:12px 14px 10px;}
+.search input{
+  width:100%;
+  padding:9px 12px;
+  border-radius:10px;
+  background:rgba(255,255,255,.05);
+  border:1px solid var(--line);
+  color:var(--text);
+  font-size:13px;
+  outline:none;
+  transition:border-color .16s,background .16s;
+}
+.search input::placeholder{color:var(--muted-2);}
+.search input:focus{border-color:rgba(109,139,255,.5);background:rgba(255,255,255,.07);}
+
+.rounds{flex:1 1 auto;overflow-y:auto;padding:0 8px 20px;}
+.rounds::-webkit-scrollbar{width:10px;}
+.rounds::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border:3px solid var(--bg-2);border-radius:10px;}
+.rounds::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.18);}
+
+.round{margin-bottom:2px;}
+
+.round-head{
+  display:flex;
+  align-items:center;
+  gap:9px;
+  width:100%;
+  padding:10px 10px;
+  border-radius:9px;
+  text-align:left;
+  transition:background .14s;
+}
+.round-head:hover{background:rgba(255,255,255,.045);}
+.round-head .chev{
+  flex:0 0 auto;
+  width:14px;height:14px;
+  color:var(--muted);
+  transition:transform .2s ease;
+}
+.round.open .round-head .chev{transform:rotate(90deg);}
+.round-head .nm{flex:1 1 auto;font-size:13.5px;font-weight:650;letter-spacing:-.01em;}
+.round-head .ct{
+  flex:0 0 auto;
+  font-size:11px;
+  color:var(--muted-2);
+  padding:2px 7px;
+  border-radius:99px;
+  background:rgba(255,255,255,.05);
+}
+
+.roundnote{
+  padding:2px 12px 8px 33px;
+  font-size:11px;
+  line-height:1.65;
+  color:var(--muted-2);
+}
+
+.round-body{display:none;padding:2px 0 8px;}
+.round.open .round-body{display:block;}
+
+.item{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  width:100%;
+  padding:8px 10px 8px 33px;
+  border-radius:8px;
+  text-align:left;
+  color:var(--muted);
+  font-size:13px;
+  transition:background .14s,color .14s;
+}
+.item:hover{background:rgba(255,255,255,.05);color:var(--text);}
+.item.on{background:var(--accent-soft);color:#fff;font-weight:600;}
+.item .dot{
+  flex:0 0 auto;
+  width:5px;height:5px;border-radius:99px;
+  background:var(--muted-2);
+  transition:background .14s,box-shadow .14s;
+}
+.item.on .dot{background:var(--accent);box-shadow:0 0 0 3px rgba(109,139,255,.2);}
+.item.soon{color:var(--muted-2);cursor:default;}
+.item.soon:hover{background:none;color:var(--muted-2);}
+.item.soon .dot{background:rgba(255,255,255,.12);}
+.item .lb{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.item .ext{flex:0 0 auto;font-size:10px;color:var(--muted-2);}
+.item .dur{flex:0 0 auto;font-size:11px;color:var(--muted-2);font-variant-numeric:tabular-nums;letter-spacing:.01em;}
+.item.on .dur{color:var(--muted);}
+
+.sidefoot{
+  flex:0 0 auto;
+  padding:11px 16px;
+  border-top:1px solid var(--line);
+  font-size:11.5px;
+  color:var(--muted-2);
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+}
+
+/* ───────── 무대 ───────── */
+.stage{
+  flex:1 1 auto;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  padding:14px 22px 18px;
+  gap:10px;
+  background:var(--stage);
+  color:var(--stage-text);
+}
+
+.frame{
+  flex:1 1 auto;
+  min-height:0;
+  display:flex;
+  align-items:flex-start;   /* 정보 바 바로 아래에 붙는다 */
+  justify-content:center;
+}
+
+.box{
+  position:relative;
+  max-width:100%;
+  max-height:100%;
+  border-radius:12px;
+  overflow:hidden;
+  background:#000;
+  box-shadow:0 10px 34px rgba(60,50,30,.18);
+  transition:width .28s cubic-bezier(.4,0,.2,1),height .28s cubic-bezier(.4,0,.2,1);
+}
+.box iframe{display:block;width:100%;height:100%;border:0;}
+.box .loading{
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;gap:9px;
+  background:#e9e5da;
+  color:var(--stage-muted);
+  font-size:13px;
+  transition:opacity .35s ease;
+}
+.box.ready .loading{opacity:0;pointer-events:none;}
+.box .spin{
+  width:14px;height:14px;border-radius:99px;
+  border:2px solid rgba(0,0,0,.12);
+  border-top-color:var(--accent);
+  animation:spin .7s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+.box.pending{background:#e9e5da;box-shadow:0 10px 34px rgba(60,50,30,.14);}
+.box.pending .ph{
+  height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:9px;text-align:center;padding:26px;
+}
+.box.pending .big{font-size:15px;font-weight:700;color:var(--stage-text);}
+.box.pending .sm{font-size:12.5px;color:var(--stage-muted);line-height:1.7;}
+
+/* 무대 위의 안내문(불러오는 중 / 등록된 영상 없음)은 아이보리 배경에 맞춘다 */
+.frame .empty .big{color:var(--stage-text);}
+.frame .empty .sm{color:var(--stage-muted);}
+
+.empty{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:10px;
+  height:100%;
+  color:var(--muted-2);
+  text-align:center;
+  padding:24px;
+}
+.empty .big{font-size:15px;color:var(--muted);font-weight:600;}
+.empty .sm{font-size:12.5px;max-width:420px;line-height:1.65;}
+
+/* ───────── 하단 바 ───────── */
+.nowbar{
+  flex:0 0 auto;
+  display:flex;
+  align-items:center;
+  gap:16px;
+  padding:0 2px 2px;
+  min-height:40px;
+}
+.nowmeta{min-width:0;flex:1 1 auto;}
+.nowmeta .n1{font-size:14.5px;font-weight:700;letter-spacing:-.01em;color:var(--stage-text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.nowmeta .n2{font-size:11.5px;color:var(--stage-muted);margin-top:2px;}
+.nowacts{display:flex;gap:7px;flex:0 0 auto;}
+.act{
+  padding:6px 11px;
+  border-radius:7px;
+  font-size:12.5px;
+  font-weight:600;
+  color:var(--stage-muted);
+  transition:background .15s,color .15s;
+  white-space:nowrap;
+}
+.act:hover:not(:disabled){background:rgba(0,0,0,.07);color:var(--stage-text);}
+.act:disabled{opacity:.35;cursor:default;}
+
+.toast{
+  position:fixed;
+  left:50%;bottom:34px;
+  transform:translate(-50%,14px);
+  padding:10px 18px;
+  border-radius:10px;
+  background:rgba(24,29,48,.96);
+  box-shadow:0 10px 30px rgba(0,0,0,.45),inset 0 0 0 1px var(--line-2);
+  font-size:13px;
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .2s,transform .2s;
+  z-index:50;
+}
+.toast.on{opacity:1;transform:translate(-50%,0);}
+
+@media (max-width:900px){
+  .topbar{height:auto;flex-wrap:wrap;gap:12px;padding:12px 16px;}
+  .tools{width:100%;}
+  .shell{flex-direction:column;}
+  .side{flex:0 0 auto;max-height:38vh;border-right:0;border-bottom:1px solid var(--line);}
+  .stage{padding:14px;}
+}
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <button class="home" id="home" title="처음으로" aria-label="처음으로">
+    <svg viewBox="0 0 20 20" fill="none" aria-hidden="true">
+      <path d="M3.5 8.6L10 3.2l6.5 5.4V16a1 1 0 0 1-1 1h-3.2v-4.4H7.7V17H4.5a1 1 0 0 1-1-1V8.6z"
+            stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+    </svg>
+  </button>
+  <nav class="pdtabs" id="pdtabs"></nav>
+  <div class="tools">
+    <div class="ratio">
+      <button data-r="16x9" class="on">16:9</button>
+      <button data-r="9x16">9:16</button>
+    </div>
+  </div>
+</header>
+
+<div class="shell">
+  <aside class="side">
+    <div class="sidehead" id="sidehead" hidden></div>
+    <div class="search"><input id="q" type="search" placeholder="제목 검색" autocomplete="off"></div>
+    <div class="rounds" id="rounds"></div>
+    <div class="sidefoot"><span id="cnt"></span><span id="src"></span></div>
+  </aside>
+
+  <main class="stage">
+    <div class="nowbar">
+      <div class="nowmeta">
+        <div class="n1" id="n1">—</div>
+        <div class="n2" id="n2"></div>
+      </div>
+      <div class="nowacts">
+        <button class="act" id="prev" disabled>이전</button>
+        <button class="act" id="next" disabled>다음</button>
+        <button class="act" id="open" disabled>새 창</button>
+        <button class="act" id="copy" disabled>링크 복사</button>
+      </div>
+    </div>
+    <div class="frame" id="frame">
+      <div class="empty" id="empty">
+        <div class="big">불러오는 중…</div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+var REMOTE = "https://axexam.mycafe24.com/exam/";
+
+/* 사이트에 올렸으면 상대경로, 로컬에서 더블클릭했으면 절대경로 */
+function base(){
+  if (location.protocol === "file:") return REMOTE;
+  var dir = location.origin + location.pathname.replace(/[^/]*$/, "");
+  return /\/exam\/$/.test(dir) ? dir : REMOTE;
+}
+
+var $ = function(id){ return document.getElementById(id); };
+
+var state = { tab:"", rounds:[], flat:[], cur:-1, ratio:"16x9", q:"" };
+
+/* ── 제목 오버라이드 ── */
+function roundName(r){ return (TITLES.rounds && TITLES.rounds[r]) || r; }
+
+/* 목록용 이름: 회차 헤더에 이미 "1회"가 있으므로 "1회 1~10번" → "1~10번" 으로 줄인다.
+   TITLES.items 에 적어둔 이름이 있으면 그것이 항상 이긴다. */
+function itemName(v, round){
+  var l = v.label || "";
+  var t = TITLES.items && TITLES.items[l];
+  if (t) return t;
+  if (round && l.indexOf(round) === 0) {
+    var s = l.slice(round.length).replace(/^[\s·\-–—]+/, "");
+    if (s) return s;
+  }
+  return l;
+}
+/* 하단 바 등 맥락이 없는 곳에서는 원래 라벨(회차 포함)을 쓴다 */
+function fullName(v){
+  var l = v.label || "";
+  return (TITLES.items && TITLES.items[l]) || l;
+}
+
+/* ── check.js 의 vidSrc() 규칙을 그대로 따른다 ── */
+function embedSrc(v){
+  var id = v.id || "";
+  if (v.provider === "vimeo") return "https://player.vimeo.com/video/" + id;
+  if (v.provider === "file")  return id;
+  if (v.provider === "drive") return "https://drive.google.com/file/d/" + id + "/preview";
+  var s = parseInt(v.sec, 10) || 0;
+  return "https://www.youtube.com/embed/" + id + "?rel=0&modestbranding=1" + (s ? "&start=" + s : "");
+}
+/* 영상 길이 표기 — 목록엔 8:34 / 1:16:44, 제목줄엔 8분 34초 / 1시간 16분 */
+function fmtDur(s){
+  s = Math.round(s);
+  var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return (h ? h + ":" + String(m).padStart(2, "0") : m) + ":" + String(x).padStart(2, "0");
+}
+function fmtDurLong(s){
+  s = Math.round(s);
+  var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  if (h) return h + "시간 " + m + "분";
+  return m + "분 " + x + "초";
+}
+
+/* provider=link 는 embed 하지 않고 새 창으로 연다 */
+function isLink(v){ return v.provider === "link"; }
+function outUrl(v){
+  if (isLink(v)) return v.id;
+  if (v.provider === "drive") return "https://drive.google.com/file/d/" + (v.id||"") + "/view";
+  if (v.provider === "vimeo") return "https://vimeo.com/" + (v.id||"");
+  if (v.provider === "file")  return v.id;
+  return "https://youtu.be/" + (v.id||"");
+}
+
+/* ── 데이터 로딩 ── */
+function loadVideos(pd, done){
+  window.VIDEOS = null;
+  var old = $("vjs");
+  if (old) old.parentNode.removeChild(old);
+
+  var s = document.createElement("script");
+  s.id = "vjs";
+  s.src = base() + "pd/" + encodeURIComponent(pd) + "/videos.js?t=" + Date.now();
+  s.onload  = function(){ done(window.VIDEOS && typeof window.VIDEOS === "object" ? window.VIDEOS : {}); };
+  s.onerror = function(){ done(null); };
+  document.head.appendChild(s);
+}
+
+/* 레벨 제한 영상 합치기 — check.js 와 같은 방식. 로컬(file://)에서는 건너뛴다 */
+function mergePrivate(pd, map, done){
+  if (location.protocol === "file:") { done(map, true); return; }
+  fetch(base() + "api/videos.php?pd=" + encodeURIComponent(pd), { credentials:"include" })
+    .then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){
+      if (j && j.ok && j.items && typeof j.items === "object") {
+        Object.keys(j.items).forEach(function(r){
+          var add = j.items[r];
+          if (!Array.isArray(add) || !add.length) return;
+          map[r] = (map[r] || []).concat(add);
+          map[r].sort(function(a,b){ return (a.part||0) - (b.part||0); });
+        });
+      }
+      done(map, false);
+    })
+    .catch(function(){ done(map, false); });
+}
+
+/* ── 드라이브 폴더 자동 읽기 (TABS 의 folder:"…") ──
+   review.html 옆의 folder.php 가 폴더 목록을 JSON 으로 준다. 실패하면 적어둔 id 만 쓴다. */
+function loadFolder(folderId, done){
+  var url = location.pathname.replace(/[^/]*$/, "") + "folder.php?id=" + encodeURIComponent(folderId) + "&t=" + Date.now();
+  fetch(url).then(function(r){ return r.ok ? r.json() : null; })
+    .then(function(j){ done(j && j.ok && Array.isArray(j.files) ? j.files : []); })
+    .catch(function(){ done([]); });
+}
+
+/* 폴더 파일을 목록에 끼워 넣는다.
+   - 파일명 앞의 숫자(01-img-motion.mp4 → 1)와 label 앞의 숫자(01장 … → 1)가 같고 id 가 비어 있으면 그 자리에
+   - 어느 항목에도 안 맞는 파일은 "기타" 묶음으로 끝에 붙인다 (이름이 규칙에 안 맞아도 잃어버리지 않게)
+   - 이미 id 가 적힌 항목은 그대로 둔다. 길이(sec)는 DUR 에 합친다 */
+function mergeFolder(map, files){
+  map = map || {};
+  if (!files.length) return map;
+  var used = {};
+  Object.keys(map).forEach(function(r){
+    (map[r] || []).forEach(function(v){ if (v.id) used[v.id] = true; });
+  });
+  var out = {};
+  Object.keys(map).forEach(function(r){
+    out[r] = (map[r] || []).map(function(v){
+      var o = { label:v.label, id:v.id };
+      if (!o.id) {
+        var i, f, hit = -1;
+        if (v.file) {
+          /* file:"q3-01-03" → 파일명이 "q3-01-03_" 또는 "q3-01-03." 으로 시작하는 것 */
+          for (i = 0; i < files.length; i++) {
+            f = files[i];
+            if (!used[f.id] && (f.name || "").indexOf(v.file) === 0 && /^[_.]/.test((f.name || "").slice(v.file.length))) { hit = i; break; }
+          }
+        } else {
+          /* file 이 없으면 라벨 앞 숫자와 파일명 앞 숫자 비교 (01장 … ↔ 01-….mp4) */
+          var n = (v.label || "").match(/^\d+/);
+          if (n) for (i = 0; i < files.length; i++) {
+            f = files[i];
+            var fn = (f.name || "").match(/^\d+/);
+            if (fn && !used[f.id] && parseInt(fn[0], 10) === parseInt(n[0], 10)) { hit = i; break; }
+          }
+        }
+        if (hit >= 0) { o.id = files[hit].id; used[files[hit].id] = true; }
+      }
+      return o;
+    });
+  });
+  var rest = files.filter(function(f){ return !used[f.id]; });
+  if (rest.length) out["기타"] = rest.map(function(f){ return { label:(f.name || "").replace(/\.[a-z0-9]+$/i, ""), id:f.id }; });
+  files.forEach(function(f){ if (f.sec > 0 && !DUR[f.id]) DUR[f.id] = f.sec; });
+  return out;
+}
+
+/* ── 렌더 ── */
+function buildRounds(map){
+  var keys = Object.keys(map).filter(function(k){ return Array.isArray(map[k]) && map[k].length; });
+  keys.sort(function(a,b){ return a.localeCompare(b, "ko", { numeric:true }); });
+  var all = keys.map(function(k){ return { key:k, items:map[k] }; });
+
+  /* 업로드된 영상이 들어 있는 묶음을 위로 올린다(원래 순서는 그대로).
+     아직 하나도 안 올라온 묶음은 아래로 내려가 목록 맨 위가 늘 재생 가능한 것부터가 된다. */
+  function has(g){ return g.items.some(function(v){ return !!v.id; }); }
+  return all.filter(has).concat(all.filter(function(g){ return !has(g); }));
+}
+
+function renderSide(){
+  var wrap = $("rounds");
+  var q = state.q.trim().toLowerCase();
+  var html = "", n = 0, shown = 0;
+  state.flat = [];
+
+  /* 아직 한 편도 안 올라온 탭이면 목차가 통째로 숨지 않도록 첫 묶음은 펼쳐 둔다 */
+  var noneUploaded = !state.rounds.some(function(g){
+    return g.items.some(function(v){ return !!v.id; });
+  });
+
+  state.rounds.forEach(function(rd, ri){
+    var rows = "", hit = 0;
+    rd.items.forEach(function(v){
+      var idx = state.flat.length;
+      state.flat.push({ round:rd.key, v:v });
+      n++;
+      var nm = itemName(v, rd.key);
+      if (q && (nm + " " + fullName(v)).toLowerCase().indexOf(q) < 0 && rd.key.toLowerCase().indexOf(q) < 0) return;
+      hit++; shown++;
+      var rdy = !!v.id;
+      var tail = !rdy ? '<span class="ext">준비중</span>'
+               : isLink(v) ? '<span class="ext">새창</span>'
+               : (DUR[v.id] ? '<span class="dur">' + fmtDur(DUR[v.id]) + '</span>' : '');
+      rows += '<button class="item' + (rdy ? '' : ' soon') + '" data-i="' + idx + '"' + (rdy ? '' : ' disabled') + '>' +
+                '<span class="dot"></span>' +
+                '<span class="lb">' + esc(nm) + '</span>' + tail +
+              '</button>';
+    });
+    if (q && !hit) return;
+    /* 업로드된 영상이 있는 묶음은 펼친 채로 시작한다. 아직 안 올라온 묶음만 접어 둔다. */
+    var open = q ? true : (rd.items.some(function(v){ return !!v.id; }) || (noneUploaded && ri === 0));
+    /* 탭에 note 가 있으면 첫 묶음 제목 바로 아래에 작은 글씨로 붙인다(접어도 계속 보임) */
+    var note = "";
+    if (ri === 0 && !q && state.note && state.note.length) {
+      note = '<div class="roundnote">' +
+               state.note.map(function(t){ return esc(t); }).join("<br>") +
+             '</div>';
+    }
+
+    html += '<div class="round' + (open ? " open" : "") + '" data-r="' + ri + '">' +
+              '<button class="round-head">' +
+                '<svg class="chev" viewBox="0 0 16 16" fill="none" aria-hidden="true">' +
+                  '<path d="M6 3.5L10.5 8L6 12.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>' +
+                '</svg>' +
+                '<span class="nm">' + esc(roundName(rd.key)) + '</span>' +
+                '<span class="ct">' + rd.items.length + '편</span>' +
+              '</button>' + note +
+              '<div class="round-body">' + rows + '</div>' +
+            '</div>';
+  });
+
+  wrap.innerHTML = html || '<div class="empty" style="height:160px"><div class="sm">검색 결과가 없습니다.</div></div>';
+
+  var ready = state.flat.filter(function(e){ return !!e.v.id; }).length;
+  $("cnt").textContent = q ? (shown + " / " + n + "편")
+                           : (ready < n ? (ready + " / " + n + "편 준비") : ("총 " + n + "편"));
+
+  wrap.querySelectorAll(".round-head").forEach(function(h){
+    h.onclick = function(){ h.parentNode.classList.toggle("open"); };
+  });
+  wrap.querySelectorAll(".item").forEach(function(b){
+    b.onclick = function(){ play(parseInt(b.getAttribute("data-i"), 10)); };
+  });
+  mark();
+}
+
+function mark(){
+  document.querySelectorAll("#rounds .item").forEach(function(b){
+    b.classList.toggle("on", parseInt(b.getAttribute("data-i"), 10) === state.cur);
+  });
+}
+
+function fitBox(){
+  var box = document.querySelector(".box");
+  if (!box) return;
+  var f = $("frame");
+  var aw = f.clientWidth, ah = f.clientHeight;
+  var rw = state.ratio === "9x16" ? 9 : 16;
+  var rh = state.ratio === "9x16" ? 16 : 9;
+  var w = aw, h = w * rh / rw;
+  if (h > ah) { h = ah; w = h * rw / rh; }
+  box.style.width  = Math.floor(w) + "px";
+  box.style.height = Math.floor(h) + "px";
+}
+
+/* 아직 영상이 안 올라온 목록 — 화면비는 그대로 보여준다(세로형 확인용) */
+function showPending(){
+  $("frame").innerHTML =
+    '<div class="box pending"><div class="ph">' +
+      '<div class="big">업로드 준비중</div>' +
+      '<div class="sm">목록은 전체가 나와 있습니다.<br>영상이 올라오면 이 자리에서 바로 재생됩니다.</div>' +
+    '</div></div>';
+  fitBox();
+}
+
+function play(i){
+  var e = state.flat[i];
+  if (!e || !e.v.id) return;
+  state.cur = i;
+  var v = e.v;
+
+  $("n1").textContent = fullName(v);
+  $("n2").textContent = roundName(e.round) + " · " + (v.provider || "youtube") +
+                        (DUR[v.id] ? " · " + fmtDurLong(DUR[v.id]) : "");
+  $("prev").disabled = i <= 0;
+  $("next").disabled = i >= state.flat.length - 1;
+  $("open").disabled = false;
+  $("copy").disabled = false;
+
+  var f = $("frame");
+  if (isLink(v)) {
+    f.innerHTML = '<div class="empty">' +
+        '<div class="big">새 창으로 여는 영상입니다</div>' +
+        '<div class="sm">이 항목은 공유 링크(내려받아 보는 검토용)로 등록돼 있어 화면 안에서 재생하지 않습니다. 아래 <b>새 창</b> 버튼을 눌러 주세요.</div>' +
+      '</div>';
+  } else {
+    /* 드라이브 플레이어가 뜨기까지 1~3초 걸린다 — 그동안 검은 화면 대신 로딩 표시 */
+    f.innerHTML = '<div class="box">' +
+        '<iframe allow="autoplay; fullscreen" allowfullscreen referrerpolicy="no-referrer-when-downgrade" src="' + esc(embedSrc(v)) + '"></iframe>' +
+        '<div class="loading"><span class="spin"></span>불러오는 중</div>' +
+      '</div>';
+    /* iframe 의 load 는 드라이브 문서가 뜰 때 나지만 영상 첫 프레임은 그보다 늦게 그려진다.
+       load 후 조금 더 가린 뒤 걷어낸다(먹통이면 6초 뒤 강제로 걷어냄). */
+    var bx = f.querySelector(".box");
+    var reveal = function(){ if (bx) bx.classList.add("ready"); };
+    var ifr = f.querySelector("iframe");
+    if (ifr) ifr.onload = function(){ setTimeout(reveal, 1400); };
+    setTimeout(reveal, 6000);
+    fitBox();
+  }
+
+  var u = new URL(location.href);
+  u.searchParams.set("t", state.tab);
+  u.searchParams.set("v", String(i));
+  history.replaceState(null, "", u);
+
+  mark();
+  var el = document.querySelector('#rounds .item[data-i="' + i + '"]');
+  if (el) {
+    var rd = el.closest(".round");
+    if (rd && !rd.classList.contains("open")) rd.classList.add("open");
+    el.scrollIntoView({ block:"nearest" });
+  }
+}
+
+function showEmpty(big, sm){
+  $("frame").innerHTML = '<div class="empty"><div class="big">' + esc(big) + '</div>' +
+    (sm ? '<div class="sm">' + sm + '</div>' : '') + '</div>';
+}
+
+function toast(msg){
+  var t = $("toast");
+  t.textContent = msg;
+  t.classList.add("on");
+  clearTimeout(t._h);
+  t._h = setTimeout(function(){ t.classList.remove("on"); }, 1600);
+}
+
+function esc(s){
+  return String(s == null ? "" : s)
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+/* ── 탭 전환 ── */
+function setRatio(r){
+  state.ratio = r;
+  document.querySelectorAll(".ratio button").forEach(function(b){
+    b.classList.toggle("on", b.getAttribute("data-r") === r);
+  });
+  fitBox();
+}
+
+/* VIDEOS_BY_TAB 항목은 provider 를 생략할 수 있다 — 기본값 drive */
+function fromDrive(obj){
+  var map = {};
+  Object.keys(obj || {}).forEach(function(g){
+    var list = obj[g];
+    if (!Array.isArray(list) || !list.length) return;
+    /* id 가 아직 비어 있는 항목도 목록에는 남긴다 — 화면에 "준비중" 으로 표시 */
+    map[g] = list.map(function(v, i){
+      return { label:v.label || (g + " " + (i+1)), provider:v.provider || "drive", id:v.id || "", part:i+1, sec:v.sec||0 };
+    });
+  });
+  return map;
+}
+
+function firstVisible(){
+  return TABS.filter(function(t){ return !t.hidden; })[0] || TABS[0];
+}
+
+function openTab(key, wantIdx){
+  var tab = TABS.filter(function(t){ return t.key === key; })[0] || firstVisible();
+  state.tab = tab.key;
+  state.cur = -1;
+  state.rounds = [];
+  state.flat = [];
+  $("rounds").innerHTML = "";
+  $("cnt").textContent = "";
+  $("src").textContent = "";
+  $("n1").textContent = "—";
+  $("n2").textContent = "";
+  ["prev","next","open","copy"].forEach(function(id){ $(id).disabled = true; });
+  showEmpty("불러오는 중…", "");
+
+  document.querySelectorAll(".pdtab").forEach(function(b){
+    b.classList.toggle("on", b.getAttribute("data-k") === tab.key);
+  });
+  setRatio(tab.ratio || "16x9");
+
+  /* 좌측 상단 — 탭의 풀네임(책 제목 등). 없으면 감춘다. */
+  var sh = $("sidehead");
+  sh.textContent = tab.heading || "";
+  sh.hidden = !tab.heading;
+  state.note = tab.note || null;
+
+  function finish(map, skipped){
+    state.rounds = buildRounds(map);
+    $("src").textContent = skipped ? "로컬 · 공개분만" : "";
+    renderSide();
+    if (!state.rounds.length) {
+      if (tab.from === "drive") {
+        showEmpty("아직 등록된 영상이 없습니다",
+          "<b>review.html</b> 을 열어 <b>VIDEOS_BY_TAB</b> 의 <b>\"" + esc(tab.key) + "\"</b> 아래에<br>" +
+          "구글드라이브 영상을 적으면 여기에 바로 나타납니다.");
+      } else {
+        showEmpty("아직 등록된 영상이 없습니다",
+          esc(tab.name) + " 의 목록(<b>pd/" + esc(tab.pd) + "/videos.js</b>)이 비어 있습니다.<br>" +
+          "<b>youtube_map.json</b> 에 항목을 채우고 다시 빌드하면 자동으로 나타납니다.");
+      }
+      return;
+    }
+    var want = (typeof wantIdx === "number" && state.flat[wantIdx] && state.flat[wantIdx].v.id) ? wantIdx : -1;
+    if (want < 0) {
+      for (var i = 0; i < state.flat.length; i++) { if (state.flat[i].v.id) { want = i; break; } }
+    }
+    if (want < 0) { showPending(); return; }
+    play(want);
+  }
+
+  if (tab.from === "drive") {
+    if (tab.folder && location.protocol !== "file:") {
+      loadFolder(tab.folder, function(files){
+        finish(fromDrive(mergeFolder(VIDEOS_BY_TAB[tab.key], files)), false);
+      });
+    } else {
+      finish(fromDrive(VIDEOS_BY_TAB[tab.key]), false);
+    }
+    return;
+  }
+
+  loadVideos(tab.pd, function(map){
+    if (map === null) {
+      showEmpty("아직 등록된 영상이 없습니다",
+        esc(tab.name) + " 의 목록 파일(<b>pd/" + esc(tab.pd) + "/videos.js</b>)이 아직 없습니다.<br>" +
+        "<b>youtube_map.json</b> 에 항목을 채우고 다시 빌드하면 자동으로 나타납니다.");
+      return;
+    }
+    mergePrivate(tab.pd, map, finish);
+  });
+}
+
+/* ── 초기화 ── */
+function init(){
+  document.title = (TITLES.page || "해설영상");
+
+  /* hidden:true 인 탭은 메뉴에서 뺀다. 주소로 직접 열면(?t=키) 미리 볼 수 있다. */
+  $("pdtabs").innerHTML = TABS.filter(function(t){ return !t.hidden; }).map(function(t){
+    return '<button class="pdtab" data-k="' + esc(t.key) + '">' + esc(t.name) + '</button>';
+  }).join("");
+  document.querySelectorAll(".pdtab").forEach(function(b){
+    b.onclick = function(){ openTab(b.getAttribute("data-k")); };
+  });
+  $("home").onclick = function(){ openTab(firstVisible().key); };
+
+  document.querySelectorAll(".ratio button").forEach(function(b){
+    b.onclick = function(){ setRatio(b.getAttribute("data-r")); };
+  });
+
+  $("q").oninput = function(){ state.q = this.value; renderSide(); };
+  $("prev").onclick = function(){ if (state.cur > 0) play(state.cur - 1); };
+  $("next").onclick = function(){ if (state.cur < state.flat.length - 1) play(state.cur + 1); };
+  $("open").onclick = function(){
+    var e = state.flat[state.cur];
+    if (e) window.open(outUrl(e.v), "_blank", "noopener");
+  };
+  $("copy").onclick = function(){
+    var e = state.flat[state.cur];
+    if (!e) return;
+    var url = outUrl(e.v);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function(){ toast("링크를 복사했습니다"); },
+                                              function(){ window.prompt("복사하세요", url); });
+    } else {
+      window.prompt("복사하세요", url);
+    }
+  };
+
+  document.addEventListener("keydown", function(ev){
+    if (/^(INPUT|TEXTAREA)$/.test(ev.target.tagName)) return;
+    if (ev.key === "ArrowDown") { ev.preventDefault(); if (state.cur < state.flat.length - 1) play(state.cur + 1); }
+    if (ev.key === "ArrowUp")   { ev.preventDefault(); if (state.cur > 0) play(state.cur - 1); }
+  });
+
+  var ro = new ResizeObserver(fitBox);
+  ro.observe($("frame"));
+  window.addEventListener("resize", fitBox);
+
+  var p  = new URLSearchParams(location.search);
+  var vi = parseInt(p.get("v"), 10);
+  openTab(p.get("t") || firstVisible().key, isNaN(vi) ? undefined : vi);
+}
+
+document.addEventListener("DOMContentLoaded", init);
+})();
+</script>
+</body>
+</html>
