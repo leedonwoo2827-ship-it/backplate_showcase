@@ -35,6 +35,67 @@ def _payload(p: Path) -> Dict[str, Any]:
     return batch_jobs.normalize_payload(json.loads(p.read_text(encoding="utf-8")))
 
 
+def _bake(job, *, items: List[Dict[str, Any]], out_dir: Path, size: str,
+          deck: str, st: Dict[str, Any], force: bool, what: str) -> Dict[str, Any]:
+    """한 묶음을 굽고 끝날 때까지 지켜본다. 본문과 썸네일이 같은 것을 쓴다.
+
+    ★ `start_job` 이 아니라 `start_job_in_thread` 다 — 쇼케이스는 스테이지를
+      이벤트 루프가 없는 데몬 스레드에서 돌린다(2026-09-18 실측:
+      RuntimeError: no running event loop).
+    ★ 배치는 **한 번에 하나만** 돈다(저쪽 active_job 가드). 그래서 본문을
+      끝내고 나서 썸네일을 돈다 — 동시에 못 돌린다.
+    """
+    from imgstudio.services import batch_jobs
+
+    bj = batch_jobs.start_job_in_thread(
+        items=items, out_dir=str(out_dir), size=size, deck=deck,
+        workers=int(st.get("batch_workers") or batch_jobs.DEFAULT_WORKERS),
+        retries=batch_jobs.DEFAULT_RETRIES,
+        skip_existing=not force, with_title=False,
+        fmt=st.get("default_format", "png"), to_gallery=False)
+    job.add_log(f"{what} 굽는 중 — 작업 {bj.id}")
+
+    waited, last = 0.0, -1
+    cur = None
+    while True:
+        time.sleep(POLL_SEC)
+        waited += POLL_SEC
+        cur = batch_jobs.get_job(bj.id)
+        if cur is None:
+            raise RuntimeError("작업이 사라졌습니다(서버 재시작?)")
+        c = cur.to_dict()["counts"]
+        done = int(c.get("done", 0)) + int(c.get("skipped", 0))
+        if done != last:
+            last = done
+            job.progress(done, len(items),
+                         f"{what} · 실패 {c.get('failed', 0)}"
+                         if c.get("failed") else what)
+        if cur.status != "running":
+            break
+        if getattr(job, "canceled", False):
+            batch_jobs.stop_job(bj.id)
+            raise RuntimeError("사람이 멈췄습니다")
+        if waited > MAX_WAIT_SEC:
+            batch_jobs.stop_job(bj.id)
+            raise RuntimeError("너무 오래 걸려 멈췄습니다")
+
+    final = cur.to_dict()
+    c = final["counts"]
+    warn: List[str] = []
+    if final.get("fatal"):
+        # 로그인 만료가 여기로 온다. **이름을 그대로 남긴다** — "실패"만 적으면
+        # 할당량 소진인지 로그인 문제인지 사람이 알 수 없다.
+        warn.append(f"{what} 전체 중단: {final['fatal']}")
+    for it in final.get("items", []):
+        if it.get("status") == "failed" and it.get("error"):
+            warn.append(f"{what} {it['n']}번: {it['error']}")
+    job.add_log(f"{what}: 만듦 {c.get('done', 0)} · 건너뜀 {c.get('skipped', 0)} "
+                f"· 실패 {c.get('failed', 0)}")
+    return {"job": bj.id, "made": c.get("done", 0),
+            "skipped": c.get("skipped", 0), "failed": c.get("failed", 0),
+            "warn": warn}
+
+
 def run(job, pid: int, slug: str, project: Dict[str, Any], *, force: bool = False):
     stage = STAGES["s3c-images-run"]
     from imgstudio.core.config import load_settings
@@ -55,68 +116,54 @@ def run(job, pid: int, slug: str, project: Dict[str, Any], *, force: bool = Fals
     have = batch_jobs.scan_existing(str(d))
     todo = [it for it in items if int(it["n"]) not in have]
     job.add_log(f"이미 있음 {len(have)}장 · 새로 구움 {len(todo)}장")
-    if not todo and not force:
-        return write_cache(pid, slug, "s3c-images-run",
-                           input_hash=stage.input_hash(pid, slug, project),
-                           data={"made": 0, "skipped": len(have), "failed": 0},
-                           code_version=stage.code_version, cost_usd=0.0,
-                           status="ok", warnings=[])
-
     st = load_settings()
     size = norm.get("suggested_size") or st.get("default_size", "auto")
-    # ★ `start_job` 이 아니라 `start_job_in_thread` 다. 쇼케이스는 스테이지를
-    #   **이벤트 루프가 없는 데몬 스레드**에서 돌리는데, `start_job` 은
-    #   `asyncio.get_running_loop()` 을 써서 거기서는 죽는다
-    #   (2026-09-18 실측: RuntimeError: no running event loop).
-    bj = batch_jobs.start_job_in_thread(
-        items=items, out_dir=str(d), size=size,
-        deck=norm.get("deck") or project.get("title") or slug,
-        workers=int(st.get("batch_workers") or batch_jobs.DEFAULT_WORKERS),
-        retries=batch_jobs.DEFAULT_RETRIES,
-        skip_existing=not force, with_title=False,
-        fmt=st.get("default_format", "png"), to_gallery=False)
-    job.add_log(f"작업 {bj.id} 시작")
+    deck_name = norm.get("deck") or project.get("title") or slug
 
-    waited, last = 0.0, -1
-    while True:
-        time.sleep(POLL_SEC)
-        waited += POLL_SEC
-        cur = batch_jobs.get_job(bj.id)
-        if cur is None:
-            raise RuntimeError("작업이 사라졌습니다(서버 재시작?)")
-        c = cur.to_dict()["counts"]
-        done = int(c.get("done", 0)) + int(c.get("skipped", 0))
-        if done != last:
-            last = done
-            job.progress(done, len(items),
-                         f"실패 {c.get('failed', 0)}" if c.get("failed") else "")
-        if cur.status != "running":
-            break
-        if getattr(job, "canceled", False):
-            batch_jobs.stop_job(bj.id)
-            raise RuntimeError("사람이 멈췄습니다")
-        if waited > MAX_WAIT_SEC:
-            batch_jobs.stop_job(bj.id)
-            raise RuntimeError("너무 오래 걸려 멈췄습니다")
+    # ★ **여기서 일찍 빠져나가지 않는다.** 예전에는 본문이 다 있으면 곧장
+    #   돌아갔는데, 그러면 **썸네일을 영영 안 굽는다** — 썸네일은 본문과
+    #   딴 폴더(bak/)에 살아서 「본문이 다 있다」와 아무 상관이 없다
+    #   (2026-09-18 실측: 1장 본문 11장을 다 굽고도 썸네일이 안 나왔다).
+    if todo or force:
+        r = _bake(job, items=items, out_dir=d, size=size, deck=deck_name,
+                  st=st, force=force, what="본문")
+    else:
+        job.add_log(f"본문 {len(have)}장이 이미 있습니다 — 건너뜁니다")
+        r = {"job": "", "made": 0, "skipped": len(have), "failed": 0, "warn": []}
+    warn: List[str] = list(r["warn"])
 
-    final = cur.to_dict()
-    c = final["counts"]
-    warn: List[str] = []
-    if final.get("fatal"):
-        # 로그인 만료가 여기로 온다. **이름을 그대로 남긴다** — "실패"만 적으면
-        # 할당량 소진인지 로그인 문제인지 사람이 알 수 없다.
-        warn.append(f"전체 중단: {final['fatal']}")
-    for it in final.get("items", []):
-        if it.get("status") == "failed" and it.get("error"):
-            warn.append(f"{it['n']}번: {it['error']}")
+    # ── 썸네일 ────────────────────────────────────────────────────────────
+    # ★ **bak/ 에 굽는다.** 썸네일은 후보 두 장(후킹형·차분형)이고 번호가
+    #   1·2 다. 본문과 같은 폴더에 두면 `001.png`·`002.png` 가 본문 그림과
+    #   부딪힌다 — 그래서 사람이 전부터 bak/ 에 따로 모아 왔다. 그 관행을
+    #   그대로 따른다(9장 bak/001.png·002.png 가 그것이다).
+    # ★ 화풍이 본문과 **일부러 다르다**(스톱모션 퍼핏). 그래서 지시문도
+    #   파일도 따로다 — 여기서 섞지 않는다.
+    th_src = d / "썸네일프롬프트.json"
+    th = {"made": 0, "skipped": 0, "failed": 0}
+    if th_src.is_file():
+        try:
+            th_norm = _payload(th_src)
+        except Exception as e:  # noqa: BLE001
+            warn.append(f"썸네일 지시문을 읽지 못했습니다: {e}")
+            th_norm = None
+        if th_norm and th_norm.get("items"):
+            bak = d / "bak"
+            bak.mkdir(parents=True, exist_ok=True)
+            th = _bake(job, items=th_norm["items"], out_dir=bak,
+                       size=th_norm.get("suggested_size") or size,
+                       deck=f"{deck_name} (썸네일)", st=st, force=force,
+                       what="썸네일")
+            warn += th.pop("warn", [])
+            job.add_log(f"썸네일은 {bak.name}/001.png · 002.png "
+                        f"— 둘을 견줘 하나를 고릅니다")
 
-    job.add_log(f"만듦 {c.get('done', 0)} · 건너뜀 {c.get('skipped', 0)} · "
-                f"실패 {c.get('failed', 0)}")
     return write_cache(pid, slug, "s3c-images-run",
                        input_hash=stage.input_hash(pid, slug, project),
-                       data={"job": bj.id, "made": c.get("done", 0),
-                             "skipped": c.get("skipped", 0),
-                             "failed": c.get("failed", 0),
+                       data={"job": r["job"], "made": r["made"],
+                             "skipped": r["skipped"], "failed": r["failed"],
+                             "thumb": {k: th.get(k, 0)
+                                       for k in ("made", "skipped", "failed")},
                              "size": size, "dir": str(d)},
                        code_version=stage.code_version, cost_usd=0.0,
                        status="degraded" if warn else "ok", warnings=warn[:10])

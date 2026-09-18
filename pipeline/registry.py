@@ -253,7 +253,7 @@ _DEFS: List[Stage] = [
     #   "ext" 인 이유: Claude 가 아니라 바깥 이미지 백엔드를 부른다(구독 할당량).
     Stage("s3c-images-run", "그림 굽기", "images", "ext",
           deps=["s3a-imgprompt", "s3b-images"],
-          reads=["slug", "title", "image_fit"], code_version=1),
+          reads=["slug", "title", "image_fit"], code_version=2),
     # ★ **HyperFrames 렌더.** s12-video(Playwright 스틸 + ffmpeg 이어붙이기)를
     #   대신한다. 글자가 DOM 이라 GSAP 이 직접 움직이고, 상자를 되찾을 일이 없다.
     #   오디오도 HyperFrames 가 먹고, 마지막에 −16 LUFS 로 맞춘다.
